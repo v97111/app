@@ -25,6 +25,8 @@ export default function ProfileScreen() {
 
   const [isEditingName, setIsEditingName] = React.useState(false);
   const [tempName, setTempName] = React.useState(user.name);
+  const [isEditingEmail, setIsEditingEmail] = React.useState(false);
+  const [tempEmail, setTempEmail] = React.useState(user.email);
 
   const menuItems = [
     {
@@ -59,6 +61,7 @@ export default function ProfileScreen() {
 
   const handleEditName = () => {
     setTempName(user.name);
+    setIsEditingEmail(false);
     setIsEditingName(true);
   };
 
@@ -72,6 +75,35 @@ export default function ProfileScreen() {
   const handleCancelEditName = () => {
     setTempName(user.name);
     setIsEditingName(false);
+  };
+
+  const handleEditEmail = () => {
+    setTempEmail(user.email);
+    setIsEditingName(false);
+    setIsEditingEmail(true);
+  };
+
+  const handleSaveEmail = () => {
+    const trimmedEmail = tempEmail.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!trimmedEmail) {
+      Alert.alert('Invalid Email', 'Email address cannot be empty.');
+      return;
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+
+    updateUser({ email: trimmedEmail });
+    setIsEditingEmail(false);
+  };
+
+  const handleCancelEditEmail = () => {
+    setTempEmail(user.email);
+    setIsEditingEmail(false);
   };
 
   const handleChangePhoto = () => {
@@ -170,9 +202,46 @@ export default function ProfileScreen() {
               )}
               <View style={styles.userDetail}>
                 <Mail size={14} color={colors.textSecondary} />
-                <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-                  {user.email}
-                </Text>
+                {isEditingEmail ? (
+                  <View style={styles.emailEditContainer}>
+                    <TextInput
+                      style={[
+                        styles.emailInput,
+                        { color: colors.text, borderColor: colors.border },
+                      ]}
+                      value={tempEmail}
+                      onChangeText={setTempEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <View style={styles.emailEditActions}>
+                      <TouchableOpacity
+                        onPress={handleSaveEmail}
+                        style={[styles.nameActionButton, { backgroundColor: colors.success }]}
+                      >
+                        <Check size={16} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleCancelEditEmail}
+                        style={[styles.nameActionButton, { backgroundColor: colors.error }]}
+                      >
+                        <X size={16} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.emailDisplay}
+                    onPress={handleEditEmail}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
+                      {user.email}
+                    </Text>
+                    <Edit size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
               </View>
               <View style={styles.userDetail}>
                 <Calendar size={14} color={colors.textSecondary} />
@@ -323,9 +392,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  emailDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    gap: 8,
+  },
   userEmail: {
     fontSize: 16,
-    marginLeft: 8,
   },
   joinedDate: {
     fontSize: 14,
@@ -359,6 +433,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+  },
+  emailEditContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  emailInput: {
+    flex: 1,
+    fontSize: 16,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  emailEditActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   statsContainer: {
     flexDirection: 'row',
