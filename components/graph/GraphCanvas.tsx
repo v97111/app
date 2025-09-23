@@ -51,6 +51,7 @@ export function GraphCanvas({
   // Canvas gestures
   const panGesture = Gesture.Pan()
     .minDistance(10)
+    .maxPointers(1)
     .onUpdate((event) => {
       translateX.value = lastTranslateX.value + event.translationX;
       translateY.value = lastTranslateY.value + event.translationY;
@@ -72,14 +73,18 @@ export function GraphCanvas({
   // Two-finger tap for node creation
   const twoFingerTapGesture = Gesture.Tap()
     .numberOfTaps(1)
-    .maxDuration(300)
+    .minPointers(2)
+    .maxDistance(20)
+    .maxDuration(250)
     .onEnd((event) => {
-      if (event.numberOfPointers >= 2 && onCanvasPress) {
+      if (onCanvasPress) {
         const canvasX = (event.x - translateX.value) / scale.value;
         const canvasY = (event.y - translateY.value) / scale.value;
         runOnJS(onCanvasPress)({ x: canvasX, y: canvasY });
       }
     });
+
+  twoFingerTapGesture.requireExternalGestureToFail(pinchGesture);
 
   const composedGesture = Gesture.Simultaneous(
     panGesture,
