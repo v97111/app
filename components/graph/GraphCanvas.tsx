@@ -73,11 +73,15 @@ export function GraphCanvas({
   // Two-finger tap for node creation
   const twoFingerTapGesture = Gesture.Tap()
     .numberOfTaps(1)
-    .numberOfPointers(2)
+    .minPointers(2)
 
     .maxDistance(20)
     .maxDuration(250)
-    .onEnd((event) => {
+    .onEnd((event, successful) => {
+      if (!successful || event.numberOfPointers < 2) {
+        return;
+      }
+
       if (onCanvasPress) {
         const canvasX = (event.x - translateX.value) / scale.value;
         const canvasY = (event.y - translateY.value) / scale.value;
