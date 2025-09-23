@@ -38,23 +38,28 @@ export function anchorFromSide(r: RectLike, s: Side) {
 }
 
 // Basic orthogonal path with rounded corners
-export function orthogonalWaypoints(out: {x: number; y: number}, inn: {x: number; y: number}, parentSide: Side, childSide: Side) {
+export function orthogonalWaypoints(
+  out: {x: number; y: number},
+  inn: {x: number; y: number},
+  parentSide: Side,
+  childSide: Side
+) {
   'worklet';
-  const pts = [out];
+  const pts: {x: number; y: number}[] = [];
   const bothH = (parentSide === 'left' || parentSide === 'right') && (childSide === 'left' || childSide === 'right');
   const bothV = (parentSide === 'top' || parentSide === 'bottom') && (childSide === 'top' || childSide === 'bottom');
-  
+
   if (bothH) {
-    const midX = (out.x + inn.x)/2; 
-    pts.push({x: midX, y: out.y}, {x: midX, y: inn.y});
+    const midX = (out.x + inn.x) / 2;
+    pts.push({ x: midX, y: out.y }, { x: midX, y: inn.y });
   } else if (bothV) {
-    const midY = (out.y + inn.y)/2; 
-    pts.push({x: out.x, y: midY}, {x: inn.x, y: midY});
+    const midY = (out.y + inn.y) / 2;
+    pts.push({ x: out.x, y: midY }, { x: inn.x, y: midY });
   } else {
     // choose an L that is less likely to cross nodes; start simple
-    pts.push({x: out.x, y: inn.y});
+    pts.push({ x: out.x, y: inn.y });
   }
-  pts.push(inn);
+
   return pts;
 }
 

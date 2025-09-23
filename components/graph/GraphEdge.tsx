@@ -52,8 +52,9 @@ export function GraphEdge({ from, to, strokeWidth = 2, color = '#0E7AFE' }: Grap
       y: cAnchor.y + sideVec(cSide).y * pad 
     };
 
-    const pts = [pOut, ...orthogonalWaypoints(pOut, cIn, pSide, cSide), cAnchor];
-    const d = toRoundedSvgPath(pts, 10);
+    const midPoints = orthogonalWaypoints(pOut, cIn, pSide, cSide);
+    const pts = [pAnchor, pOut, ...midPoints, cIn, cAnchor];
+    const d = toRoundedSvgPath(pts, 12);
     return { d } as any;
   });
 
