@@ -74,6 +74,7 @@ export function GraphCanvas({
   const twoFingerTapGesture = Gesture.Tap()
     .numberOfTaps(1)
     .numberOfPointers(2)
+
     .maxDistance(20)
     .maxDuration(250)
     .onEnd((event) => {
