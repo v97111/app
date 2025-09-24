@@ -73,6 +73,15 @@ export function GraphNode({
     if (Math.abs(h.value - height) > 1) h.value = height;
   };
 
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500)
+    .maxDistance(35)
+    .onEnd((_, success) => {
+      if (success && onLongPress) {
+        runOnJS(onLongPress)();
+      }
+    });
+
   const panGesture = Gesture.Pan()
     .minDistance(2)
     .maxPointers(1)
@@ -93,16 +102,7 @@ export function GraphNode({
       }
     });
 
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(500)
-    .maxDistance(20)
-    .onStart(() => {
-      if (onLongPress) {
-        runOnJS(onLongPress)();
-      }
-    });
-
-  const nodeGesture = Gesture.Simultaneous(panGesture, longPressGesture);
+  const nodeGesture = Gesture.Exclusive(longPressGesture, panGesture);
 
   const handlePress = () => {
     if (onPress) onPress();
