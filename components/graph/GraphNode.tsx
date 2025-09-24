@@ -20,6 +20,7 @@ interface GraphNodeProps {
   initialY?: number;
   status?: 'todo' | 'in-progress' | 'blocked' | 'done';
   attachments?: any[];
+  color?: string;
   onCommit?: (id: string, x: number, y: number) => void;
   onPress?: () => void;
   onLongPress?: () => void;
@@ -34,10 +35,12 @@ export function GraphNode({
   attachments,
   onCommit,
   onPress,
-  onLongPress 
+  onLongPress,
+  color
 }: GraphNodeProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const accentColor = color ?? colors.primary;
   
   // ✅ Hooks at top level (no loops)
   const x = useSharedValue(initialX);
@@ -117,7 +120,7 @@ export function GraphNode({
               borderRadius: 12,
               backgroundColor: colors.card,
               borderWidth: 2,
-              borderColor: colors.primary,
+              borderColor: accentColor,
               minWidth: 180,
               maxWidth: 220,
               ...Platform.select({
@@ -145,7 +148,7 @@ export function GraphNode({
                 width: 24,
                 height: 24,
                 borderRadius: 12,
-                backgroundColor: colors.primary,
+                backgroundColor: accentColor,
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginRight: 8,

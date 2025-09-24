@@ -1,89 +1,176 @@
 import type { Side, RectLike } from '@/types/graph';
 
-export function sector(dx: number, dy: number): Side {
+export type AnchorPoint = { x: number; y: number; side: Side };
+
+const SIDES: Side[] = ['top', 'right', 'bottom', 'left'];
+
+export function anchorsForRect(rect: RectLike): AnchorPoint[] {
   'worklet';
-  const deg = Math.atan2(dy, dx) * 180 / Math.PI;
-  if (deg >= -45 && deg <= 45) return 'right';
-  if (deg > 45 && deg < 135) return 'bottom';
-  if (deg <= -45 && deg >= -135) return 'top';
-  return 'left';
+  const width = Number.isFinite(rect.w) ? rect.w : 0;
+  const height = Number.isFinite(rect.h) ? rect.h : 0;
+  const cx = rect.x + width / 2;
+  const cy = rect.y + height / 2;
+
+  return [
+    { side: 'top', x: cx, y: rect.y },
+    { side: 'right', x: rect.x + width, y: cy },
+    { side: 'bottom', x: cx, y: rect.y + height },
+    { side: 'left', x: rect.x, y: cy },
+  ];
 }
 
-export function pickPorts(p: RectLike, c: RectLike, tol = 24): { parent: Side; child: Side } {
+export function closestAnchorPair(parent: RectLike, child: RectLike) {
   'worklet';
-  const pcx = p.x + p.w/2, pcy = p.y + p.h/2;
-  const ccx = c.x + c.w/2, ccy = c.y + c.h/2;
-  const dx = ccx - pcx, dy = ccy - pcy;
-  
-  if (Math.abs(dx) <= tol) return { parent: 'bottom', child: 'top' };
-  if (Math.abs(dy) <= tol) return { parent: dx > 0 ? 'right' : 'left', child: dx > 0 ? 'left' : 'right' };
-  
-  const ps = sector(dx, dy);
-  const opp: Record<Side, Side> = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
-  return { parent: ps, child: opp[ps] };
+  const parentAnchors = anchorsForRect(parent);
+  const childAnchors = anchorsForRect(child);
+
+  let bestParent = parentAnchors[0];
+  let bestChild = childAnchors[0];
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < parentAnchors.length; i += 1) {
+    const p = parentAnchors[i];
+    for (let j = 0; j < childAnchors.length; j += 1) {
+      const c = childAnchors[j];
+      const dx = c.x - p.x;
+      const dy = c.y - p.y;
+      const dist = dx * dx + dy * dy;
+
+      if (dist < bestDistance) {
+        bestDistance = dist;
+        bestParent = p;
+        bestChild = c;
+      }
+    }
+  }
+
+  return { parent: bestParent, child: bestChild };
 }
 
-export function sideVec(s: Side) { 
-  'worklet'; 
-  return s === 'left' ? {x: -1, y: 0} : s === 'right' ? {x: 1, y: 0} : s === 'top' ? {x: 0, y: -1} : {x: 0, y: 1}; 
-}
-
-export function anchorFromSide(r: RectLike, s: Side) {
+export function pickPorts(parent: RectLike, child: RectLike): { parent: Side; child: Side } {
   'worklet';
-  const cx = r.x + r.w/2, cy = r.y + r.h/2;
-  if (s === 'left') return { x: r.x, y: cy };
-  if (s === 'right') return { x: r.x + r.w, y: cy };
-  if (s === 'top') return { x: cx, y: r.y };
-  return { x: cx, y: r.y + r.h };
+  const { parent: p, child: c } = closestAnchorPair(parent, child);
+  return { parent: p.side, child: c.side };
 }
 
-// Basic orthogonal path with rounded corners
+export function sideVec(side: Side) {
+  'worklet';
+  switch (side) {
+    case 'left':
+      return { x: -1, y: 0 };
+    case 'right':
+      return { x: 1, y: 0 };
+    case 'top':
+      return { x: 0, y: -1 };
+    default:
+      return { x: 0, y: 1 };
+  }
+}
+
+export function anchorFromSide(rect: RectLike, side: Side) {
+  'worklet';
+  return anchorsForRect(rect).find((anchor) => anchor.side === side) ?? {
+    side,
+    x: rect.x,
+    y: rect.y,
+  };
+}
+
 export function orthogonalWaypoints(
-  out: {x: number; y: number},
-  inn: {x: number; y: number},
+  out: { x: number; y: number },
+  inn: { x: number; y: number },
   parentSide: Side,
-  childSide: Side
+  childSide: Side,
 ) {
   'worklet';
-  const pts: {x: number; y: number}[] = [];
-  const bothH = (parentSide === 'left' || parentSide === 'right') && (childSide === 'left' || childSide === 'right');
-  const bothV = (parentSide === 'top' || parentSide === 'bottom') && (childSide === 'top' || childSide === 'bottom');
+  const points: { x: number; y: number }[] = [];
+  const parentHorizontal = parentSide === 'left' || parentSide === 'right';
+  const childHorizontal = childSide === 'left' || childSide === 'right';
 
-  if (bothH) {
+  if (parentHorizontal && childHorizontal) {
     const midX = (out.x + inn.x) / 2;
-    pts.push({ x: midX, y: out.y }, { x: midX, y: inn.y });
-  } else if (bothV) {
+    points.push({ x: midX, y: out.y }, { x: midX, y: inn.y });
+  } else if (!parentHorizontal && !childHorizontal) {
     const midY = (out.y + inn.y) / 2;
-    pts.push({ x: out.x, y: midY }, { x: inn.x, y: midY });
+    points.push({ x: out.x, y: midY }, { x: inn.x, y: midY });
   } else {
-    // choose an L that is less likely to cross nodes; start simple
-    pts.push({ x: out.x, y: inn.y });
+    const via: { x: number; y: number } = parentHorizontal
+      ? { x: inn.x, y: out.y }
+      : { x: out.x, y: inn.y };
+    points.push(via);
   }
 
-  return pts;
+  return points;
 }
 
-export function toRoundedSvgPath(pts: {x: number; y: number}[], r = 10) {
+export function toRoundedSvgPath(points: { x: number; y: number }[], radius = 12) {
   'worklet';
-  if (!pts.length) return '';
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-  
-  for (let i = 1; i < pts.length; i++) {
-    const p0 = pts[i-1];
-    const p1 = pts[i];
-    const p2 = pts[i+1];
-    
-    if (!p2) { 
-      d += ` L ${p1.x} ${p1.y}`; 
-      break; 
+  if (!points.length) return '';
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+  let prevPoint = points[0];
+
+  for (let i = 1; i < points.length; i += 1) {
+    const current = points[i];
+    const next = points[i + 1];
+
+    if (!next) {
+      path += ` L ${current.x} ${current.y}`;
+      break;
     }
-    
-    const v1x = p1.x - p0.x, v1y = p1.y - p0.y;
-    const v2x = p2.x - p1.x, v2y = p2.y - p1.y;
-    const rr = Math.min(r, Math.max(Math.abs(v1x) + Math.abs(v1y), 1)/2, Math.max(Math.abs(v2x) + Math.abs(v2y), 1)/2);
-    const p1a = { x: p1.x - Math.sign(v1x) * rr, y: p1.y - Math.sign(v1y) * rr };
-    const p1b = { x: p1.x + Math.sign(v2x) * rr, y: p1.y + Math.sign(v2y) * rr };
-    d += ` L ${p1a.x} ${p1a.y} Q ${p1.x} ${p1.y} ${p1b.x} ${p1b.y}`;
+
+    const v1x = current.x - prevPoint.x;
+    const v1y = current.y - prevPoint.y;
+    const v2x = next.x - current.x;
+    const v2y = next.y - current.y;
+    const len1 = Math.hypot(v1x, v1y) || 1;
+    const len2 = Math.hypot(v2x, v2y) || 1;
+    const r = Math.min(radius, len1 / 2, len2 / 2);
+
+    const startX = current.x - (v1x / len1) * r;
+    const startY = current.y - (v1y / len1) * r;
+    const endX = current.x + (v2x / len2) * r;
+    const endY = current.y + (v2y / len2) * r;
+
+    path += ` L ${startX} ${startY} Q ${current.x} ${current.y} ${endX} ${endY}`;
+    prevPoint = { x: endX, y: endY };
   }
-  return d;
+
+  return path;
+}
+
+export function arrowHeadPath(tail: { x: number; y: number }, tip: { x: number; y: number }, length = 16, width = 10) {
+  'worklet';
+  const dx = tip.x - tail.x;
+  const dy = tip.y - tail.y;
+  const segLength = Math.hypot(dx, dy) || 1;
+  const ux = dx / segLength;
+  const uy = dy / segLength;
+  const px = -uy;
+  const py = ux;
+
+  const baseX = tip.x - ux * length;
+  const baseY = tip.y - uy * length;
+  const leftX = baseX + px * (width / 2);
+  const leftY = baseY + py * (width / 2);
+  const rightX = baseX - px * (width / 2);
+  const rightY = baseY - py * (width / 2);
+
+  return `M ${tip.x} ${tip.y} L ${leftX} ${leftY} L ${rightX} ${rightY} Z`;
+}
+
+export function isHorizontal(side: Side) {
+  'worklet';
+  return side === 'left' || side === 'right';
+}
+
+export function isVertical(side: Side) {
+  'worklet';
+  return side === 'top' || side === 'bottom';
+}
+
+export function cycleSides(index: number) {
+  'worklet';
+  const idx = ((index % SIDES.length) + SIDES.length) % SIDES.length;
+  return SIDES[idx];
 }

@@ -77,12 +77,33 @@ export default function ProjectDetailScreen() {
   ) => {
     if (!project) return;
 
+    const standaloneRoot = childData?.meta?.standaloneRoot === true;
+    let effectiveParentId = parentId;
+
+    if (!effectiveParentId && !standaloneRoot) {
+      const score = (node: Node) => {
+        const parsed = Date.parse(node.createdAt ?? '');
+        return Number.isFinite(parsed) ? parsed : node.orderIndex ?? 0;
+      };
+
+      const previous = nodes.reduce<Node | undefined>((latest, candidate) => {
+        if (candidate.projectId !== project.id) return latest;
+        if (candidate.parentId) return latest;
+        if (candidate.meta?.standaloneRoot) return latest;
+
+        if (!latest) return candidate;
+        return score(candidate) >= score(latest) ? candidate : latest;
+      }, undefined);
+
+      effectiveParentId = previous?.id;
+    }
+
     let nodePosition = position;
     if (!nodePosition) {
-      if (parentId) {
-        const parent = nodes.find(n => n.id === parentId);
-        nodePosition = parent
-          ? { x: parent.position.x + 50, y: parent.position.y + 180 }
+      if (effectiveParentId) {
+        const parentNode = nodes.find(n => n.id === effectiveParentId);
+        nodePosition = parentNode
+          ? { x: parentNode.position.x + 50, y: parentNode.position.y + 180 }
           : { x: 100, y: 100 };
       } else {
         const maxY = nodes.reduce((max, n) => Math.max(max, n.position.y), 0);
@@ -90,22 +111,27 @@ export default function ProjectDetailScreen() {
       }
     }
 
+    const finalPosition = nodePosition ?? { x: 100, y: 100 };
+    const now = new Date().toISOString();
+    const meta = childData?.meta ?? (standaloneRoot ? { standaloneRoot: true } : undefined);
+
     const newNode: Node = {
       id: Date.now().toString(),
       title: 'New Node',
       projectId: project.id,
-      parentId,
       status: 'todo',
       priority: 'medium',
       assigneeIds: [],
       tags: [],
       color: project.color,
-      position: nodePosition,
       orderIndex: nodes.length,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       createdBy: 'current-user',
       ...childData,
+      parentId: effectiveParentId,
+      position: childData?.position ?? finalPosition,
+      meta,
     };
 
     try {
