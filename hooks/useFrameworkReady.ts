@@ -1,13 +1,11 @@
 import { useEffect } from 'react';
 
-declare global {
-  interface Window {
-    frameworkReady?: () => void;
-  }
-}
+type FrameworkReadyScope = typeof globalThis & { frameworkReady?: () => void };
 
 export function useFrameworkReady() {
   useEffect(() => {
-    window.frameworkReady?.();
-  });
+    if (typeof globalThis !== 'undefined') {
+      (globalThis as FrameworkReadyScope).frameworkReady?.();
+    }
+  }, []);
 }
