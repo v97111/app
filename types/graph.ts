@@ -1,3 +1,5 @@
+import type { NodeMeta } from './index';
+
 export type NodeID = string;
 export type PortSide = 'left' | 'right' | 'top' | 'bottom';
 
@@ -42,10 +44,21 @@ export interface UINode {
   title: string;
   x?: number; // initial (optional)
   y?: number; // initial (optional)
+  status?: 'todo' | 'in-progress' | 'blocked' | 'done';
+  attachments?: any[];
+  parentId?: string | null;
+  projectId?: string;
+  createdAt?: string;
+  color?: string;
+  meta?: NodeMeta | null;
 }
 
 export interface UIEdge {
   id: string;
   from: NodeID;
   to: NodeID;
+}
+
+export interface DerivedEdge extends UIEdge {
+  kind: 'parent' | 'sequential';
 }

@@ -32,6 +32,11 @@ export interface Project {
   nodeCount: number;
 }
 
+export interface NodeMeta {
+  standaloneRoot?: boolean;
+  [key: string]: any;
+}
+
 export interface Node {
   id: string;
   title: string;
@@ -53,6 +58,7 @@ export interface Node {
   attachments?: Attachment[];
   richNotes?: string;
   drawingData?: string;
+  meta?: NodeMeta;
 }
 
 export interface Attachment {

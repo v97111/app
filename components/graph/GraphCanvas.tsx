@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
 import { View, Dimensions, TouchableOpacity, Text, Platform } from 'react-native';
 import { useColorScheme } from 'react-native';
-import Svg, { Defs, Marker, Path } from 'react-native-svg';
+import Svg from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
   withSpring,
-  runOnJS 
+  runOnJS
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
+import type { UINode, DerivedEdge } from '@/types/graph';
+import { deriveGraphEdges } from '@/utils/graphSelectors';
 import { GraphProvider } from './GraphRegistry';
 import { GraphNode } from './GraphNode';
 import { GraphEdge } from './GraphEdge';
@@ -20,25 +22,48 @@ const CANVAS_SIZE = { width: screenWidth * 2, height: screenHeight * 2 };
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2.0;
 
+interface GraphCanvasEdge extends DerivedEdge {
+  color?: string;
+}
+
 interface GraphCanvasProps {
-  nodes: Array<{ id: string; title: string; x?: number; y?: number; status?: 'todo' | 'in-progress' | 'blocked' | 'done'; attachments?: any[] }>;
-  edges: Array<{ id: string; from: string; to: string }>;
+  nodes: UINode[];
+  edges?: GraphCanvasEdge[];
   onCommit?: (id: string, x: number, y: number) => void;
   onNodePress?: (id: string) => void;
   onNodeLongPress?: (id: string) => void;
   onCanvasPress?: (position: { x: number; y: number }) => void;
 }
 
-export function GraphCanvas({ 
-  nodes, 
-  edges, 
-  onCommit, 
-  onNodePress, 
+export function GraphCanvas({
+  nodes,
+  edges,
+  onCommit,
+  onNodePress,
   onNodeLongPress,
-  onCanvasPress 
+  onCanvasPress
 }: GraphCanvasProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+
+  const edgesToRender = useMemo<GraphCanvasEdge[]>(() => {
+    if (edges !== undefined) {
+      return edges;
+    }
+
+    const computed = deriveGraphEdges(nodes);
+    const colorMap = new Map<string, string | undefined>();
+    nodes.forEach((node) => {
+      if (node.color) {
+        colorMap.set(node.id, node.color);
+      }
+    });
+
+    return computed.map((edge) => ({
+      ...edge,
+      color: colorMap.get(edge.to) ?? colors.primary,
+    }));
+  }, [edges, nodes, colors.primary]);
 
   // Canvas transform values
   const translateX = useSharedValue(0);
@@ -134,36 +159,23 @@ export function GraphCanvas({
         <GestureDetector gesture={composedGesture}>
           <Animated.View style={[{ flex: 1 }, animatedStyle]}>
             {/* Edges layer */}
-            <Svg 
-              style={{ 
-                position: 'absolute', 
-                left: 0, 
-                top: 0, 
-                width: CANVAS_SIZE.width, 
+            <Svg
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: CANVAS_SIZE.width,
                 height: CANVAS_SIZE.height,
                 pointerEvents: 'none',
               }}
             >
-              <Defs>
-                <Marker
-                  id="arrowhead"
-                  markerWidth="10"
-                  markerHeight="7"
-                  refX="9"
-                  refY="3.5"
-                  orient="auto"
-                  markerUnits="strokeWidth"
-                  viewBox="0 0 10 7"
-                >
-                  <Path d="M0,0 L0,7 L10,3.5 z" fill={colors.primary} />
-                </Marker>
-              </Defs>
-              {edges.map(e => (
-                <GraphEdge 
-                  key={e.id} 
-                  from={e.from}
-                  to={e.to}
-                  color={colors.primary}
+              {edgesToRender.map((edge) => (
+                <GraphEdge
+                  key={edge.id}
+                  from={edge.from}
+                  to={edge.to}
+                  color={edge.color ?? colors.primary}
+                  kind={edge.kind}
                 />
               ))}
             </Svg>
@@ -178,14 +190,15 @@ export function GraphCanvas({
               pointerEvents="box-none"
             >
               {nodes.map(n => (
-                <GraphNode 
-                  key={n.id} 
+                <GraphNode
+                  key={n.id}
                   id={n.id}
                   title={n.title}
                   initialX={n.x}
                   initialY={n.y}
                   status={n.status}
                   attachments={n.attachments}
+                  color={n.color}
                   onCommit={onCommit}
                   onPress={() => onNodePress?.(n.id)}
                   onLongPress={() => onNodeLongPress?.(n.id)}

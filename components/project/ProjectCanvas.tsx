@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { Plus } from 'lucide-react-native';
 import { GraphCanvas } from '@/components/graph/GraphCanvas';
 import type { UINode } from '@/types/graph';
+import { deriveGraphEdges } from '@/utils/graphSelectors';
 
 interface ProjectCanvasProps {
   project: Project;
@@ -46,23 +47,34 @@ export function ProjectCanvas({
   const [viewMode, setViewMode] = useState<'graph' | 'cards'>('graph');
 
   // Convert nodes to UINode format
-  const uiNodes: UINode[] = nodes.map(node => ({
-    id: node.id,
-    title: node.title,
-    x: node.position.x,
-    y: node.position.y,
-    status: node.status,
-    attachments: node.attachments,
-  }));
+  const uiNodes: UINode[] = useMemo(() => (
+    nodes.map((node) => ({
+      id: node.id,
+      title: node.title,
+      x: node.position.x,
+      y: node.position.y,
+      status: node.status,
+      attachments: node.attachments,
+      parentId: node.parentId ?? null,
+      projectId: node.projectId,
+      createdAt: node.createdAt,
+      color: node.color,
+      meta: node.meta ?? null,
+    }))
+  ), [nodes]);
 
-  // Convert edges
-  const uiEdges = nodes
-    .filter(node => node.parentId)
-    .map(node => ({
-      id: `edge-${node.parentId}-${node.id}`,
-      from: node.parentId!,
-      to: node.id,
+  const graphEdges = useMemo(() => {
+    const derived = deriveGraphEdges(nodes);
+    const colorMap = new Map<string, string | undefined>();
+    nodes.forEach((node) => {
+      colorMap.set(node.id, node.color);
+    });
+
+    return derived.map((edge) => ({
+      ...edge,
+      color: colorMap.get(edge.to) ?? colors.primary,
     }));
+  }, [nodes, colors.primary]);
 
   const handleCommitPosition = (id: string, x: number, y: number) => {
     onNodeMove(id, { x, y });
@@ -134,7 +146,7 @@ export function ProjectCanvas({
     return (
       <GraphCanvas
         nodes={uiNodes}
-        edges={uiEdges}
+        edges={graphEdges}
         onCommit={handleCommitPosition}
         onNodePress={handleNodePress}
         onNodeLongPress={handleNodeLongPress}
