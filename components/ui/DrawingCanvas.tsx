@@ -131,7 +131,7 @@ export function DrawingCanvas({ visible, onClose, onSave, initialDrawing }: Draw
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
       onRequestClose={handleClose}
     >
       <View style={[styles.container, { backgroundColor: colors.background }]}>

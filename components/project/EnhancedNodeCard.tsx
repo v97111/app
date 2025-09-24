@@ -439,7 +439,7 @@ export function EnhancedNodeCard({
       <Modal
         visible={showDrawing}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
         onRequestClose={() => setShowDrawing(false)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
@@ -468,7 +468,7 @@ export function EnhancedNodeCard({
       <Modal
         visible={showAttachments}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
         onRequestClose={() => setShowAttachments(false)}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
