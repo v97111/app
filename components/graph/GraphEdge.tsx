@@ -42,12 +42,12 @@ function pruneRedundant(points: { x: number; y: number }[]) {
 }
 
 export function GraphEdge({ from, to, strokeWidth = 2.5, color = DEFAULT_COLOR, kind }: GraphEdgeProps) {
-  const { get } = useGraphSnapshot();
+  const graph = useGraphSnapshot();
+  const parent = graph.get(from);
+  const child = graph.get(to);
 
   const geometry = useDerivedValue(() => {
     'worklet';
-    const parent = get(from);
-    const child = get(to);
 
     if (!parent || !child) {
       return { path: '', arrow: '' };
@@ -106,7 +106,7 @@ export function GraphEdge({ from, to, strokeWidth = 2.5, color = DEFAULT_COLOR, 
 
     const arrow = arrowHeadPath(tail, tip, EDGE_RADIUS + 4, EDGE_RADIUS);
     return { path, arrow };
-  });
+  }, [parent, child]);
 
   const animatedEdgeProps = useAnimatedProps(() => ({ d: geometry.value.path || '' }));
   const animatedArrowProps = useAnimatedProps(() => ({ d: geometry.value.arrow || '' }));
