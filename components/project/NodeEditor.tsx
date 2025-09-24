@@ -9,7 +9,6 @@ import {
   Modal,
   Alert,
   Platform,
-  Switch,
 } from 'react-native';
 import { useColorScheme } from 'react-native';
 import { Colors, WorkspaceColors, PriorityColors } from '@/constants/Colors';
@@ -72,8 +71,6 @@ export function NodeEditor({ node, visible, onClose, onSave, onDelete }: NodeEdi
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>(node?.attachments || []);
-  const [standaloneRoot, setStandaloneRoot] = useState(node?.meta?.standaloneRoot ?? false);
-
   // Reset form when node changes
   useEffect(() => {
     if (node) {
@@ -88,7 +85,6 @@ export function NodeEditor({ node, visible, onClose, onSave, onDelete }: NodeEdi
       setHasDueDate(!!node.dueDate);
       setDrawingData(node.drawingData || '');
       setAttachments(node.attachments || []);
-      setStandaloneRoot(node.meta?.standaloneRoot ?? false);
     } else {
       // Reset to defaults for new node
       setTitle('');
@@ -102,7 +98,6 @@ export function NodeEditor({ node, visible, onClose, onSave, onDelete }: NodeEdi
       setHasDueDate(false);
       setDrawingData('');
       setAttachments([]);
-      setStandaloneRoot(false);
     }
     setNewTag('');
     // Reset picker states when node changes
@@ -130,7 +125,7 @@ export function NodeEditor({ node, visible, onClose, onSave, onDelete }: NodeEdi
       updatedAt: new Date().toISOString(),
       attachments,
       drawingData: drawingData || undefined,
-      meta: { ...(node?.meta ?? {}), standaloneRoot },
+      meta: node?.meta,
     };
 
     onSave(nodeData);
@@ -421,25 +416,6 @@ export function NodeEditor({ node, visible, onClose, onSave, onDelete }: NodeEdi
                   })}
                 </View>
               </ScrollView>
-            </View>
-          </Card>
-
-          {/* Hierarchy */}
-          <Card style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Hierarchy</Text>
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: colors.text }]}>Standalone root</Text>
-                <Text style={[styles.helperText, { color: colors.textSecondary }]}> 
-                  Prevent auto-linking to previous nodes in this project.
-                </Text>
-              </View>
-              <Switch
-                value={standaloneRoot}
-                onValueChange={setStandaloneRoot}
-                thumbColor={Platform.OS === 'android' ? (standaloneRoot ? colors.surface : '#f4f3f4') : undefined}
-                trackColor={{ false: colors.border, true: colors.primary }}
-              />
             </View>
           </Card>
 
@@ -821,17 +797,6 @@ const styles = StyleSheet.create({
   colorRow: {
     flexDirection: 'row',
     gap: 12,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  helperText: {
-    fontSize: 12,
-    marginTop: 4,
-    lineHeight: 16,
   },
   colorOption: {
     width: 32,
