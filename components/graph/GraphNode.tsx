@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, Platform } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -83,7 +83,7 @@ export function GraphNode({
     });
 
   const panGesture = Gesture.Pan()
-    .minDistance(2)
+    .minDistance(12)
     .maxPointers(1)
     .shouldCancelWhenOutside(false)
     .onBegin(() => {
@@ -102,11 +102,19 @@ export function GraphNode({
       }
     });
 
-  const nodeGesture = Gesture.Exclusive(longPressGesture, panGesture);
+  const tapGesture = Gesture.Tap()
+    .maxDuration(250)
+    .maxDistance(12)
+    .onEnd((_, success) => {
+      if (success && onPress) {
+        runOnJS(onPress)();
+      }
+    });
 
-  const handlePress = () => {
-    if (onPress) onPress();
-  };
+  const nodeGesture = Gesture.Simultaneous(
+    tapGesture,
+    Gesture.Exclusive(longPressGesture, panGesture)
+  );
 
   return (
     <GestureDetector gesture={nodeGesture}>
@@ -141,53 +149,51 @@ export function GraphNode({
             animatedStyle
           ]}
         >
-          <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
-            {/* Header */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <View style={{
-                width: 24,
-                height: 24,
-                borderRadius: 12,
-                backgroundColor: accentColor,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: 8,
-              }}>
-                <Circle size={12} color="#FFFFFF" />
-              </View>
-              {status && <StatusChip status={status} size="small" />}
-            </View>
-
-            {/* Title */}
-            <Text style={{
-              fontWeight: '600',
-              fontSize: 14,
-              color: colors.text,
-              marginBottom: 4,
-              lineHeight: 18,
-            }}>
-              {title}
-            </Text>
-
-            {/* Footer */}
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
             <View style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              backgroundColor: accentColor,
               alignItems: 'center',
-              marginTop: 8
+              justifyContent: 'center',
+              marginRight: 8,
             }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                {attachments && attachments.length > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                    <Paperclip size={12} color={colors.textSecondary} />
-                    <Text style={{ fontSize: 10, color: colors.textSecondary }}>
-                      {attachments.length}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <Circle size={12} color="#FFFFFF" />
             </View>
-          </TouchableOpacity>
+            {status && <StatusChip status={status} size="small" />}
+          </View>
+
+          {/* Title */}
+          <Text style={{
+            fontWeight: '600',
+            fontSize: 14,
+            color: colors.text,
+            marginBottom: 4,
+            lineHeight: 18,
+          }}>
+            {title}
+          </Text>
+
+          {/* Footer */}
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: 8
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {attachments && attachments.length > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Paperclip size={12} color={colors.textSecondary} />
+                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+                    {attachments.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
         </Animated.View>
       </Animated.View>
     </GestureDetector>
