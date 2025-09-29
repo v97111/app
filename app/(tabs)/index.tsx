@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   RefreshControl,
   TouchableOpacity,
-  Dimensions,
 } from 'react-native';
 import { useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
@@ -22,8 +21,6 @@ import { Workspace, Project, Node, Reminder } from '@/types';
 import { FloatingActionButton } from '@/components/ui/FloatingActionButton';
 import { useUser } from '@/contexts/UserContext';
 import { Alert } from 'react-native';
-
-const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const colorScheme = useColorScheme();

@@ -2,11 +2,11 @@ import React, { useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  Dimensions,
   TouchableOpacity,
   Text,
   Modal,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useColorScheme } from 'react-native';
 import Svg, { Path, G } from 'react-native-svg';
@@ -28,16 +28,16 @@ interface PathData {
   strokeWidth: number;
 }
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const CANVAS_WIDTH = screenWidth - 32;
-const CANVAS_HEIGHT = screenHeight * 0.6;
-
 const COLORS = ['#000000', '#FF3B30', '#007AFF', '#34C759', '#FF9500', '#AF52DE', '#8E8E93'];
 const STROKE_WIDTHS = [2, 4, 6, 8];
 
 export function DrawingCanvas({ visible, onClose, onSave, initialDrawing }: DrawingCanvasProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+
+  const canvasWidth = Math.max(windowWidth - 32, 280);
+  const canvasHeight = Math.max(windowHeight * 0.6, 240);
   
   const [paths, setPaths] = useState<PathData[]>([]);
   const [currentPath, setCurrentPath] = useState<string>('');
@@ -227,8 +227,8 @@ export function DrawingCanvas({ visible, onClose, onSave, initialDrawing }: Draw
           <GestureDetector gesture={panGesture}>
             <View style={styles.canvas}>
               <Svg
-                width={CANVAS_WIDTH}
-                height={CANVAS_HEIGHT}
+                width={canvasWidth}
+                height={canvasHeight}
                 style={styles.svg}
               >
                 <G>

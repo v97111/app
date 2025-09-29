@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
-  Dimensions,
   TouchableOpacity,
   Platform,
   ScrollView,
@@ -28,9 +27,6 @@ interface ProjectCanvasProps {
   onUpdateNode: (nodeId: string, updates: Partial<Node>) => void;
   onCanvasPress: (position: { x: number; y: number }) => void;
 }
-
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const CANVAS_SIZE = { width: screenWidth * 2, height: screenHeight * 2 };
 
 export function ProjectCanvas({
   project,
