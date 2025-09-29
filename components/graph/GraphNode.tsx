@@ -118,83 +118,82 @@ export function GraphNode({
 
   return (
     <GestureDetector gesture={nodeGesture}>
-      <Animated.View>
-        <Animated.View
-          onLayout={onLayout}
-          style={[
-            {
-              position: 'absolute',
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.card,
-              borderWidth: 2,
-              borderColor: accentColor,
-              minWidth: 180,
-              maxWidth: 220,
-              ...Platform.select({
-                default: {
-                  shadowColor: colors.shadow,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 8,
-                  elevation: 4,
-                },
-                web: {
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  cursor: 'grab',
-                  touchAction: 'none',
-                },
-              }),
-            },
-            animatedStyle
-          ]}
-        >
-          {/* Header */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <View style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              backgroundColor: accentColor,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 8,
-            }}>
-              <Circle size={12} color="#FFFFFF" />
-            </View>
-            {status && <StatusChip status={status} size="small" />}
-          </View>
-
-          {/* Title */}
-          <Text style={{
-            fontWeight: '600',
-            fontSize: 14,
-            color: colors.text,
-            marginBottom: 4,
-            lineHeight: 18,
-          }}>
-            {title}
-          </Text>
-
-          {/* Footer */}
+      <Animated.View
+        collapsable={false}
+        onLayout={onLayout}
+        style={[
+          {
+            position: 'absolute',
+            padding: 12,
+            borderRadius: 12,
+            backgroundColor: colors.card,
+            borderWidth: 2,
+            borderColor: accentColor,
+            minWidth: 180,
+            maxWidth: 220,
+            ...Platform.select({
+              default: {
+                shadowColor: colors.shadow,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 4,
+              },
+              web: {
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                cursor: 'grab',
+                touchAction: 'none',
+              },
+            }),
+          },
+          animatedStyle,
+        ]}
+      >
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <View style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
+            width: 24,
+            height: 24,
+            borderRadius: 12,
+            backgroundColor: accentColor,
             alignItems: 'center',
-            marginTop: 8
+            justifyContent: 'center',
+            marginRight: 8,
           }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {attachments && attachments.length > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                  <Paperclip size={12} color={colors.textSecondary} />
-                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>
-                    {attachments.length}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <Circle size={12} color="#FFFFFF" />
           </View>
-        </Animated.View>
+          {status && <StatusChip status={status} size="small" />}
+        </View>
+
+        {/* Title */}
+        <Text style={{
+          fontWeight: '600',
+          fontSize: 14,
+          color: colors.text,
+          marginBottom: 4,
+          lineHeight: 18,
+        }}>
+          {title}
+        </Text>
+
+        {/* Footer */}
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: 8,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {attachments && attachments.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                <Paperclip size={12} color={colors.textSecondary} />
+                <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+                  {attachments.length}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
       </Animated.View>
     </GestureDetector>
   );
