@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Dimensions, TouchableOpacity, Text, Platform } from 'react-native';
+import { View, TouchableOpacity, Text, Platform, useWindowDimensions } from 'react-native';
 import { useColorScheme } from 'react-native';
 import Svg from 'react-native-svg';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
@@ -17,8 +17,6 @@ import { GraphNode } from './GraphNode';
 import { GraphEdge } from './GraphEdge';
 import { Plus, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react-native';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const CANVAS_SIZE = { width: screenWidth * 2, height: screenHeight * 2 };
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2.0;
 
@@ -45,6 +43,12 @@ export function GraphCanvas({
 }: GraphCanvasProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+
+  const canvasSize = useMemo(() => ({
+    width: Math.max(windowWidth * 2, windowWidth),
+    height: Math.max(windowHeight * 2, windowHeight),
+  }), [windowWidth, windowHeight]);
 
   const edgesToRender = useMemo<GraphCanvasEdge[]>(() => {
     if (edges !== undefined) {
@@ -164,8 +168,8 @@ export function GraphCanvas({
                 position: 'absolute',
                 left: 0,
                 top: 0,
-                width: CANVAS_SIZE.width,
-                height: CANVAS_SIZE.height,
+                width: canvasSize.width,
+                height: canvasSize.height,
                 pointerEvents: 'none',
               }}
             >
@@ -181,11 +185,11 @@ export function GraphCanvas({
             </Svg>
 
             {/* Nodes layer */}
-            <View 
-              style={{ 
+            <View
+              style={{
                 position: 'absolute',
-                width: CANVAS_SIZE.width,
-                height: CANVAS_SIZE.height,
+                width: canvasSize.width,
+                height: canvasSize.height,
               }}
               pointerEvents="box-none"
             >

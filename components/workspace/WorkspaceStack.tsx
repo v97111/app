@@ -4,7 +4,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { useColorScheme } from 'react-native';
 import Animated, {
@@ -27,14 +27,14 @@ interface WorkspaceStackProps {
   index: number;
 }
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width - 32;
 const STACK_OFFSET = 8;
 const MAX_STACK_ITEMS = 3;
 
-export function WorkspaceStack({ workspace, onPress, onEdit, onDelete, index }: WorkspaceStackProps) {
+export function WorkspaceStack({ workspace, onPress, onEdit, onDelete, index: _index }: WorkspaceStackProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.max(width - 32, 260);
   
   const pressed = useSharedValue(false);
   const scale = useSharedValue(1);
@@ -74,11 +74,11 @@ export function WorkspaceStack({ workspace, onPress, onEdit, onDelete, index }: 
   const renderStackLayers = () => {
     const layers = [];
     const stackCount = Math.min(workspace.projectCount, MAX_STACK_ITEMS);
-    
+
     for (let i = stackCount - 1; i >= 0; i--) {
       const offset = i * STACK_OFFSET;
       const opacity = interpolate(i, [0, stackCount - 1], [1, 0.3]);
-      
+
       layers.push(
         <View
           key={i}
@@ -93,6 +93,7 @@ export function WorkspaceStack({ workspace, onPress, onEdit, onDelete, index }: 
               ],
               opacity,
               zIndex: -i,
+              width: cardWidth,
             },
           ]}
         />
@@ -108,7 +109,7 @@ export function WorkspaceStack({ workspace, onPress, onEdit, onDelete, index }: 
         <Animated.View style={[styles.container, animatedStyle]}>
           {renderStackLayers()}
           <TouchableOpacity onLongPress={handleLongPress}>
-            <Card style={[styles.card, { borderLeftColor: workspace.color }]}>
+            <Card style={[styles.card, { borderLeftColor: workspace.color, width: cardWidth }]}>
               <View style={styles.header}>
                 <View style={[styles.iconContainer, { backgroundColor: workspace.color }]}>
                   <Briefcase size={20} color="#FFFFFF" />
@@ -168,7 +169,6 @@ const styles = StyleSheet.create({
   },
   stackLayer: {
     position: 'absolute',
-    width: CARD_WIDTH,
     height: 100,
     borderRadius: 12,
     shadowOffset: {
