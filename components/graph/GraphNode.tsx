@@ -4,12 +4,11 @@ import {
   LongPressGestureHandler,
   PanGestureHandler,
   TapGestureHandler,
+  State,
+  type LongPressGestureHandlerStateChangeEvent,
+  type TapGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
-import type {
-  LongPressGestureHandlerGestureEvent,
-  PanGestureHandlerGestureEvent,
-  TapGestureHandlerGestureEvent,
-} from 'react-native-gesture-handler';
+import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedGestureHandler,
@@ -159,21 +158,23 @@ export function GraphNode({
     },
   });
 
-  const tapGesture = useAnimatedGestureHandler<TapGestureHandlerGestureEvent>({
-    onEnd: (_, __, success) => {
-      if (success && onPress) {
-        runOnJS(onPress)();
+  const handleTap = useCallback(
+    (event: TapGestureHandlerStateChangeEvent) => {
+      if (event.nativeEvent.state === State.END && onPress) {
+        onPress();
       }
     },
-  });
+    [onPress],
+  );
 
-  const longPressGesture = useAnimatedGestureHandler<LongPressGestureHandlerGestureEvent>({
-    onEnd: (_, __, success) => {
-      if (success && onLongPress) {
-        runOnJS(onLongPress)();
+  const handleLongPress = useCallback(
+    (event: LongPressGestureHandlerStateChangeEvent) => {
+      if (event.nativeEvent.state === State.ACTIVE && onLongPress) {
+        onLongPress();
       }
     },
-  });
+    [onLongPress],
+  );
 
   const simultaneousPanHandlers = useMemo(() => {
     const refs = [tapRef, longPressRef] as React.RefObject<any>[];
@@ -200,8 +201,7 @@ export function GraphNode({
       minDurationMs={500}
       maxDistance={35}
       simultaneousHandlers={simultaneousLongPressHandlers}
-      onGestureEvent={longPressGesture}
-      onHandlerStateChange={longPressGesture}
+      onHandlerStateChange={handleLongPress}
     >
       <TapGestureHandler
         ref={tapRef}
@@ -210,8 +210,7 @@ export function GraphNode({
         numberOfTaps={1}
         enabled={!!onPress}
         simultaneousHandlers={simultaneousTapHandlers}
-        onGestureEvent={tapGesture}
-        onHandlerStateChange={tapGesture}
+        onHandlerStateChange={handleTap}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
         <PanGestureHandler
