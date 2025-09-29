@@ -1,11 +1,21 @@
-import React, { useEffect } from 'react';
-import { View, Text, Platform } from 'react-native';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { View, Text, Platform, UIManager, findNodeHandle } from 'react-native';
+import {
+  LongPressGestureHandler,
+  PanGestureHandler,
+  TapGestureHandler,
+} from 'react-native-gesture-handler';
+import type {
+  LongPressGestureHandlerGestureEvent,
+  PanGestureHandlerGestureEvent,
+  TapGestureHandlerGestureEvent,
+} from 'react-native-gesture-handler';
 import Animated, {
-  useAnimatedStyle,
   runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
   useSharedValue,
-  withSpring
+  withSpring,
 } from 'react-native-reanimated';
 import { useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
@@ -24,177 +34,286 @@ interface GraphNodeProps {
   onCommit?: (id: string, x: number, y: number) => void;
   onPress?: () => void;
   onLongPress?: () => void;
+  canvasPanRef?: React.RefObject<any>;
+  canvasTapRef?: React.RefObject<any>;
 }
 
-export function GraphNode({ 
-  id, 
-  title, 
-  initialX = 0, 
-  initialY = 0, 
+export function GraphNode({
+  id,
+  title,
+  initialX = 0,
+  initialY = 0,
   status,
   attachments,
   onCommit,
   onPress,
   onLongPress,
-  color
+  color,
+  canvasPanRef,
+  canvasTapRef,
 }: GraphNodeProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const accentColor = color ?? colors.primary;
-  
-  // ✅ Hooks at top level (no loops)
+
   const x = useSharedValue(initialX);
   const y = useSharedValue(initialY);
   const w = useSharedValue(200);
   const h = useSharedValue(120);
   const scale = useSharedValue(1);
-  const startX = useSharedValue(initialX);
-  const startY = useSharedValue(initialY);
+  const viewRef = useRef<Animated.View>(null);
+  const panRef = useRef<PanGestureHandler>(null);
+  const tapRef = useRef<TapGestureHandler>(null);
+  const longPressRef = useRef<LongPressGestureHandler>(null);
+  const measureRaf = useRef<number | null>(null);
 
   const { register, unregister } = useGraphRegistry();
 
   useEffect(() => {
-    register(id, { x, y, w, h });
+    register(id, { x, y, w, h, panRef, tapRef });
     return () => unregister(id);
   }, [id, register, unregister, x, y, w, h]);
 
+  useEffect(() => {
+    x.value = initialX;
+    y.value = initialY;
+  }, [initialX, initialY, x, y]);
+
+  const scheduleMeasure = useCallback(() => {
+    if (measureRaf.current !== null) {
+      cancelAnimationFrame(measureRaf.current);
+    }
+
+    measureRaf.current = requestAnimationFrame(() => {
+      const handle = findNodeHandle(viewRef.current);
+      if (!handle) {
+        return;
+      }
+
+      UIManager.measureInWindow(handle, (_x, _y, width, height) => {
+        if (!width || !height) {
+          return;
+        }
+
+        if (Math.abs(w.value - width) > 0.5) {
+          w.value = width;
+        }
+
+        if (Math.abs(h.value - height) > 0.5) {
+          h.value = height;
+        }
+      });
+    });
+  }, [w, h]);
+
+  useEffect(() => () => {
+    if (measureRaf.current !== null) {
+      cancelAnimationFrame(measureRaf.current);
+    }
+  }, []);
+
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: x.value }, 
+      { translateX: x.value },
       { translateY: y.value },
-      { scale: scale.value }
+      { scale: scale.value },
     ],
   }));
 
-  const onLayout = (e: any) => {
-    const { width, height } = e.nativeEvent.layout;
-    // Only update if dimensions actually changed
-    if (Math.abs(w.value - width) > 1) w.value = width;
-    if (Math.abs(h.value - height) > 1) h.value = height;
-  };
+  const onLayout = useCallback((event: any) => {
+    const { width, height } = event.nativeEvent.layout;
 
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(500)
-    .maxDistance(35)
-    .onEnd((_, success) => {
-      if (success && onLongPress) {
-        runOnJS(onLongPress)();
-      }
-    });
+    if (Math.abs(w.value - width) > 0.5) {
+      w.value = width;
+    }
 
-  const panGesture = Gesture.Pan()
-    .minDistance(12)
-    .maxPointers(1)
-    .shouldCancelWhenOutside(false)
-    .onBegin(() => {
-      startX.value = x.value;
-      startY.value = y.value;
+    if (Math.abs(h.value - height) > 0.5) {
+      h.value = height;
+    }
+
+    scheduleMeasure();
+  }, [scheduleMeasure, w, h]);
+
+  const panGesture = useAnimatedGestureHandler<
+    PanGestureHandlerGestureEvent,
+    { startX: number; startY: number }
+  >({
+    onStart: (_, ctx) => {
+      ctx.startX = x.value;
+      ctx.startY = y.value;
       scale.value = withSpring(1.05);
-    })
-    .onUpdate((event) => {
-      x.value = startX.value + event.translationX;
-      y.value = startY.value + event.translationY;
-    })
-    .onFinalize(() => {
+    },
+    onActive: (event, ctx) => {
+      x.value = ctx.startX + event.translationX;
+      y.value = ctx.startY + event.translationY;
+    },
+    onEnd: () => {
       scale.value = withSpring(1);
       if (onCommit) {
         runOnJS(onCommit)(id, x.value, y.value);
       }
-    });
+      runOnJS(scheduleMeasure)();
+    },
+    onFinish: () => {
+      scale.value = withSpring(1);
+    },
+  });
 
-  const tapGesture = Gesture.Tap()
-    .maxDuration(250)
-    .maxDistance(12)
-    .onEnd((_, success) => {
+  const tapGesture = useAnimatedGestureHandler<TapGestureHandlerGestureEvent>({
+    onEnd: (_, __, success) => {
       if (success && onPress) {
         runOnJS(onPress)();
       }
-    });
+    },
+  });
 
-  const nodeGesture = Gesture.Simultaneous(
-    tapGesture,
-    Gesture.Exclusive(longPressGesture, panGesture)
-  );
+  const longPressGesture = useAnimatedGestureHandler<LongPressGestureHandlerGestureEvent>({
+    onEnd: (_, __, success) => {
+      if (success && onLongPress) {
+        runOnJS(onLongPress)();
+      }
+    },
+  });
+
+  const simultaneousPanHandlers = useMemo(() => {
+    const refs = [tapRef, longPressRef] as React.RefObject<any>[];
+    if (canvasPanRef) refs.push(canvasPanRef);
+    if (canvasTapRef) refs.push(canvasTapRef);
+    return refs;
+  }, [canvasPanRef, canvasTapRef]);
+
+  const simultaneousTapHandlers = useMemo(() => {
+    const refs = [panRef, longPressRef] as React.RefObject<any>[];
+    if (canvasPanRef) refs.push(canvasPanRef);
+    return refs;
+  }, [canvasPanRef]);
+
+  const simultaneousLongPressHandlers = useMemo(() => {
+    const refs = [panRef] as React.RefObject<any>[];
+    if (canvasPanRef) refs.push(canvasPanRef);
+    return refs;
+  }, [canvasPanRef]);
 
   return (
-    <GestureDetector gesture={nodeGesture}>
-      <Animated.View
-        collapsable={false}
-        onLayout={onLayout}
-        style={[
-          {
-            position: 'absolute',
-            padding: 12,
-            borderRadius: 12,
-            backgroundColor: colors.card,
-            borderWidth: 2,
-            borderColor: accentColor,
-            minWidth: 180,
-            maxWidth: 220,
-            ...Platform.select({
-              default: {
-                shadowColor: colors.shadow,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 8,
-                elevation: 4,
-              },
-              web: {
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                cursor: 'grab',
-                touchAction: 'none',
-              },
-            }),
-          },
-          animatedStyle,
-        ]}
+    <LongPressGestureHandler
+      ref={longPressRef}
+      minDurationMs={500}
+      maxDistance={35}
+      simultaneousHandlers={simultaneousLongPressHandlers}
+      onGestureEvent={longPressGesture}
+      onHandlerStateChange={longPressGesture}
+    >
+      <TapGestureHandler
+        ref={tapRef}
+        maxDurationMs={250}
+        maxDist={8}
+        numberOfTaps={1}
+        enabled={!!onPress}
+        simultaneousHandlers={simultaneousTapHandlers}
+        onGestureEvent={tapGesture}
+        onHandlerStateChange={tapGesture}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-          <View style={{
-            width: 24,
-            height: 24,
-            borderRadius: 12,
-            backgroundColor: accentColor,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 8,
-          }}>
-            <Circle size={12} color="#FFFFFF" />
-          </View>
-          {status && <StatusChip status={status} size="small" />}
-        </View>
-
-        {/* Title */}
-        <Text style={{
-          fontWeight: '600',
-          fontSize: 14,
-          color: colors.text,
-          marginBottom: 4,
-          lineHeight: 18,
-        }}>
-          {title}
-        </Text>
-
-        {/* Footer */}
-        <View style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: 8,
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {attachments && attachments.length > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                <Paperclip size={12} color={colors.textSecondary} />
-                <Text style={{ fontSize: 10, color: colors.textSecondary }}>
-                  {attachments.length}
-                </Text>
+        <PanGestureHandler
+          ref={panRef}
+          activeOffsetX={[-8, 8]}
+          activeOffsetY={[-8, 8]}
+          minPointers={1}
+          avgTouches
+          simultaneousHandlers={simultaneousPanHandlers}
+          shouldCancelWhenOutside={false}
+          onGestureEvent={panGesture}
+          onHandlerStateChange={panGesture}
+        >
+          <Animated.View
+            ref={viewRef}
+            collapsable={false}
+            onLayout={onLayout}
+            renderToHardwareTextureAndroid
+            style={[
+              {
+                position: 'absolute',
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: colors.card,
+                borderWidth: 2,
+                borderColor: accentColor,
+                minWidth: 180,
+                maxWidth: 220,
+                zIndex: 10,
+                overflow: 'hidden',
+                ...Platform.select({
+                  default: {
+                    shadowColor: colors.shadow,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 8,
+                    elevation: 6,
+                  },
+                  web: {
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    cursor: 'grab',
+                    touchAction: 'none',
+                  },
+                }),
+              },
+              animatedStyle,
+            ]}
+          >
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <View
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 12,
+                  backgroundColor: accentColor,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 8,
+                }}
+              >
+                <Circle size={12} color="#FFFFFF" />
               </View>
-            )}
-          </View>
-        </View>
-      </Animated.View>
-    </GestureDetector>
+              {status && <StatusChip status={status} size="small" />}
+            </View>
+
+            {/* Title */}
+            <Text
+              style={{
+                fontWeight: '600',
+                fontSize: 14,
+                color: colors.text,
+                marginBottom: 4,
+                lineHeight: 18,
+              }}
+            >
+              {title}
+            </Text>
+
+            {/* Footer */}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 8,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {attachments && attachments.length > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Paperclip size={12} color={colors.textSecondary} />
+                    <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+                      {attachments.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
+      </TapGestureHandler>
+    </LongPressGestureHandler>
   );
 }

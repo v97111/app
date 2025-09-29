@@ -21,8 +21,8 @@ export default function RootLayout() {
   useFrameworkReady();
 
   return (
-    <UserProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <UserProvider>
         <>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -37,7 +37,7 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="auto" />
         </>
-      </GestureHandlerRootView>
-    </UserProvider>
+      </UserProvider>
+    </GestureHandlerRootView>
   );
 }
