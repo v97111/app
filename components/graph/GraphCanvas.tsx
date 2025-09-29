@@ -1,18 +1,28 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { View, TouchableOpacity, Text, Platform, useWindowDimensions } from 'react-native';
 import { useColorScheme } from 'react-native';
 import Svg from 'react-native-svg';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import {
+  PanGestureHandler,
+  PinchGestureHandler,
+  TapGestureHandler,
+} from 'react-native-gesture-handler';
+import type {
+  PanGestureHandlerGestureEvent,
+  PinchGestureHandlerGestureEvent,
+  TapGestureHandlerGestureEvent,
+} from 'react-native-gesture-handler';
 import Animated, {
-  useSharedValue,
+  runOnJS,
+  useAnimatedGestureHandler,
   useAnimatedStyle,
+  useSharedValue,
   withSpring,
-  runOnJS
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import type { UINode, DerivedEdge } from '@/types/graph';
 import { deriveGraphEdges } from '@/utils/graphSelectors';
-import { GraphProvider } from './GraphRegistry';
+import { GraphProvider, useGraphSnapshot } from './GraphRegistry';
 import { GraphNode } from './GraphNode';
 import { GraphEdge } from './GraphEdge';
 import { Plus, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react-native';
@@ -33,17 +43,18 @@ interface GraphCanvasProps {
   onCanvasPress?: (position: { x: number; y: number }) => void;
 }
 
-export function GraphCanvas({
+function GraphCanvasInner({
   nodes,
   edges,
   onCommit,
   onNodePress,
   onNodeLongPress,
-  onCanvasPress
+  onCanvasPress,
 }: GraphCanvasProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const graph = useGraphSnapshot();
 
   const canvasSize = useMemo(() => ({
     width: Math.max(windowWidth * 2, windowWidth),
@@ -69,62 +80,64 @@ export function GraphCanvas({
     }));
   }, [edges, nodes, colors.primary]);
 
-  // Canvas transform values
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
-  const lastScale = useSharedValue(1);
-  const lastTranslateX = useSharedValue(0);
-  const lastTranslateY = useSharedValue(0);
 
-  // Canvas gestures
-  const panGesture = Gesture.Pan()
-    .minDistance(10)
-    .maxPointers(1)
-    .onUpdate((event) => {
-      translateX.value = lastTranslateX.value + event.translationX;
-      translateY.value = lastTranslateY.value + event.translationY;
-    })
-    .onEnd(() => {
-      lastTranslateX.value = translateX.value;
-      lastTranslateY.value = translateY.value;
-    });
+  const panRef = useRef<PanGestureHandler>(null);
+  const pinchRef = useRef<PinchGestureHandler>(null);
+  const tapRef = useRef<TapGestureHandler>(null);
 
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((event) => {
-      const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, lastScale.value * event.scale));
-      scale.value = newScale;
-    })
-    .onEnd(() => {
-      lastScale.value = scale.value;
-    });
+  const registryEntries = graph.getAll();
+  const nodePanRefs = registryEntries
+    .map(([, entry]) => entry.panRef)
+    .filter((ref): ref is NonNullable<typeof ref> => !!ref);
 
-  // Two-finger tap for node creation
-  const twoFingerTapGesture = Gesture.Tap()
-    .numberOfTaps(1)
-    .minPointers(2)
+  const clampScale = (value: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 
-    .maxDistance(20)
-    .maxDuration(250)
-    .onEnd((event, successful) => {
-      if (!successful || event.numberOfPointers < 2) {
+  const onCanvasTap = useCallback((position: { x: number; y: number }) => {
+    onCanvasPress?.(position);
+  }, [onCanvasPress]);
+
+  const panGesture = useAnimatedGestureHandler<
+    PanGestureHandlerGestureEvent,
+    { startX: number; startY: number }
+  >({
+    onStart: (_, ctx) => {
+      ctx.startX = translateX.value;
+      ctx.startY = translateY.value;
+    },
+    onActive: (event, ctx) => {
+      translateX.value = ctx.startX + event.translationX;
+      translateY.value = ctx.startY + event.translationY;
+    },
+  });
+
+  const pinchGesture = useAnimatedGestureHandler<
+    PinchGestureHandlerGestureEvent,
+    { startScale: number }
+  >({
+    onStart: (_, ctx) => {
+      ctx.startScale = scale.value;
+    },
+    onActive: (event, ctx) => {
+      scale.value = clampScale(ctx.startScale * event.scale);
+    },
+  });
+
+  const twoFingerTapGesture = useAnimatedGestureHandler<
+    TapGestureHandlerGestureEvent
+  >({
+    onEnd: (event, _, successful) => {
+      if (!successful || event.numberOfPointers < 2 || !onCanvasPress) {
         return;
       }
 
-      if (onCanvasPress) {
-        const canvasX = (event.x - translateX.value) / scale.value;
-        const canvasY = (event.y - translateY.value) / scale.value;
-        runOnJS(onCanvasPress)({ x: canvasX, y: canvasY });
-      }
-    });
-
-  twoFingerTapGesture.requireExternalGestureToFail(pinchGesture);
-
-  const composedGesture = Gesture.Simultaneous(
-    panGesture,
-    pinchGesture,
-    twoFingerTapGesture
-  );
+      const canvasX = (event.x - translateX.value) / scale.value;
+      const canvasY = (event.y - translateY.value) / scale.value;
+      runOnJS(onCanvasTap)({ x: canvasX, y: canvasY });
+    },
+  });
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -139,81 +152,111 @@ export function GraphCanvas({
     translateX.value = withSpring(0);
     translateY.value = withSpring(0);
     scale.value = withSpring(1);
-    lastTranslateX.value = 0;
-    lastTranslateY.value = 0;
-    lastScale.value = 1;
   };
 
   const zoomIn = () => {
     const newScale = Math.min(MAX_ZOOM, scale.value * 1.2);
     scale.value = withSpring(newScale);
-    lastScale.value = newScale;
   };
 
   const zoomOut = () => {
     const newScale = Math.max(MIN_ZOOM, scale.value / 1.2);
     scale.value = withSpring(newScale);
-    lastScale.value = newScale;
   };
 
   return (
-    <GraphProvider>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        {/* Canvas */}
-        <GestureDetector gesture={composedGesture}>
-          <Animated.View style={[{ flex: 1 }, animatedStyle]}>
-            {/* Edges layer */}
-            <Svg
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width: canvasSize.width,
-                height: canvasSize.height,
-                pointerEvents: 'none',
-              }}
-            >
-              {edgesToRender.map((edge) => (
-                <GraphEdge
-                  key={edge.id}
-                  from={edge.from}
-                  to={edge.to}
-                  color={edge.color ?? colors.primary}
-                  kind={edge.kind}
-                />
-              ))}
-            </Svg>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <PanGestureHandler
+        ref={panRef}
+        simultaneousHandlers={[pinchRef, tapRef]}
+        waitFor={nodePanRefs.length ? nodePanRefs : undefined}
+        avgTouches
+        minPointers={1}
+        shouldCancelWhenOutside={false}
+        onGestureEvent={panGesture}
+        onHandlerStateChange={panGesture}
+      >
+        <Animated.View
+          style={[{ flex: 1 }, animatedStyle]}
+          collapsable={false}
+          renderToHardwareTextureAndroid
+        >
+          <PinchGestureHandler
+            ref={pinchRef}
+            simultaneousHandlers={[panRef, tapRef]}
+            onGestureEvent={pinchGesture}
+            onHandlerStateChange={pinchGesture}
+          >
+            <Animated.View style={{ flex: 1 }} collapsable={false}>
+              <TapGestureHandler
+                ref={tapRef}
+                enabled={!!onCanvasPress}
+                minPointers={2}
+                maxDurationMs={250}
+                maxDist={24}
+                simultaneousHandlers={[panRef, pinchRef]}
+                onGestureEvent={twoFingerTapGesture}
+                onHandlerStateChange={twoFingerTapGesture}
+              >
+                <Animated.View style={{ flex: 1 }} collapsable={false}>
+                  {/* Edges layer */}
+                  <Svg
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      width: canvasSize.width,
+                      height: canvasSize.height,
+                    }}
+                  >
+                    {edgesToRender.map((edge) => (
+                      <GraphEdge
+                        key={edge.id}
+                        from={edge.from}
+                        to={edge.to}
+                        color={edge.color ?? colors.primary}
+                        kind={edge.kind}
+                      />
+                    ))}
+                  </Svg>
 
-            {/* Nodes layer */}
-            <View
-              style={{
-                position: 'absolute',
-                width: canvasSize.width,
-                height: canvasSize.height,
-              }}
-              pointerEvents="box-none"
-            >
-              {nodes.map(n => (
-                <GraphNode
-                  key={n.id}
-                  id={n.id}
-                  title={n.title}
-                  initialX={n.x}
-                  initialY={n.y}
-                  status={n.status}
-                  attachments={n.attachments}
-                  color={n.color}
-                  onCommit={onCommit}
-                  onPress={() => onNodePress?.(n.id)}
-                  onLongPress={() => onNodeLongPress?.(n.id)}
-                />
-              ))}
-            </View>
-          </Animated.View>
-        </GestureDetector>
+                  {/* Nodes layer */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      width: canvasSize.width,
+                      height: canvasSize.height,
+                    }}
+                    pointerEvents="box-none"
+                  >
+                    {nodes.map((n) => (
+                      <GraphNode
+                        key={n.id}
+                        id={n.id}
+                        title={n.title}
+                        initialX={n.x}
+                        initialY={n.y}
+                        status={n.status}
+                        attachments={n.attachments}
+                        color={n.color}
+                        onCommit={onCommit}
+                        onPress={() => onNodePress?.(n.id)}
+                        onLongPress={() => onNodeLongPress?.(n.id)}
+                        canvasPanRef={panRef}
+                        canvasTapRef={tapRef}
+                      />
+                    ))}
+                  </View>
+                </Animated.View>
+              </TapGestureHandler>
+            </Animated.View>
+          </PinchGestureHandler>
+        </Animated.View>
+      </PanGestureHandler>
 
-        {/* Controls */}
-        <View style={{
+      {/* Controls */}
+      <View style={{
           position: 'absolute',
           top: 60,
           right: 16,
@@ -250,58 +293,65 @@ export function GraphCanvas({
           >
             <RotateCcw size={20} color={colors.text} />
           </TouchableOpacity>
-        </View>
+      </View>
 
-        {/* Add Node Button */}
-        <TouchableOpacity
-          style={{
-            position: 'absolute',
-            bottom: 100,
-            right: 16,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: colors.primary,
-            alignItems: 'center',
-            justifyContent: 'center',
-            ...Platform.select({
-              default: {
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8,
-              },
-              web: {
-                boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-              },
-            }),
-          }}
-          onPress={() => onCanvasPress?.({ x: 100, y: 100 })}
-        >
-          <Plus size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        {/* Instructions */}
-        <View style={{
+      {/* Add Node Button */}
+      <TouchableOpacity
+        style={{
           position: 'absolute',
-          bottom: 16,
-          left: 16,
-          backgroundColor: colors.surface,
-          padding: 12,
-          borderRadius: 8,
-          maxWidth: 200,
+          bottom: 100,
+          right: 16,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
           ...Platform.select({
-            default: {},
+            default: {
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            },
             web: {
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
             },
           }),
-        }}>
-          <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-            Two-finger tap to create nodes
-          </Text>
-        </View>
+        }}
+        onPress={() => onCanvasPress?.({ x: 100, y: 100 })}
+      >
+        <Plus size={24} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* Instructions */}
+      <View style={{
+        position: 'absolute',
+        bottom: 16,
+        left: 16,
+        backgroundColor: colors.surface,
+        padding: 12,
+        borderRadius: 8,
+        maxWidth: 200,
+        ...Platform.select({
+          default: {},
+          web: {
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          },
+        }),
+      }}>
+        <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+          Two-finger tap to create nodes
+        </Text>
       </View>
+    </View>
+  );
+}
+
+export function GraphCanvas(props: GraphCanvasProps) {
+  return (
+    <GraphProvider>
+      <GraphCanvasInner {...props} />
     </GraphProvider>
   );
 }

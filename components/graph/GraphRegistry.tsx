@@ -1,12 +1,22 @@
 import React, { createContext, useContext, useMemo, useRef, useSyncExternalStore } from 'react';
+import type { RefObject } from 'react';
 import type { SharedValue } from 'react-native-reanimated';
 
-export type SVs = { x: SharedValue<number>; y: SharedValue<number>; w: SharedValue<number>; h: SharedValue<number> };
+type HandlerRef = RefObject<any> | undefined;
+export type SVs = {
+  x: SharedValue<number>;
+  y: SharedValue<number>;
+  w: SharedValue<number>;
+  h: SharedValue<number>;
+  panRef?: HandlerRef;
+  tapRef?: HandlerRef;
+};
 
 type Ctx = {
   register: (id: string, svs: SVs) => void;
   unregister: (id: string) => void;
   get: (id: string) => SVs | undefined;
+  getAll: () => Array<[string, SVs]>;
   subscribe: (cb: () => void) => () => void;
   getSnapshot: () => number;
 };
@@ -24,6 +34,7 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
     register: (id, svs) => { mapRef.current.set(id, svs); notify(); },
     unregister: (id) => { mapRef.current.delete(id); notify(); },
     get: (id) => mapRef.current.get(id),
+    getAll: () => Array.from(mapRef.current.entries()),
     subscribe: (cb) => { listeners.current.add(cb); return () => listeners.current.delete(cb); },
     getSnapshot: () => versionRef.current,
   }), []);

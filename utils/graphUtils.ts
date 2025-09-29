@@ -1,13 +1,20 @@
 import type { Side, RectLike } from '@/types/graph';
 
 export type AnchorPoint = { x: number; y: number; side: Side };
+export type Point = { x: number; y: number };
 
 const SIDES: Side[] = ['top', 'right', 'bottom', 'left'];
+const EPSILON = 0.001;
+
+const ensureFinite = (value: number) => (Number.isFinite(value) ? value : 0);
+
+const rectWidth = (rect: RectLike) => ensureFinite(rect.w ?? 0);
+const rectHeight = (rect: RectLike) => ensureFinite(rect.h ?? 0);
 
 export function anchorsForRect(rect: RectLike): AnchorPoint[] {
   'worklet';
-  const width = Number.isFinite(rect.w) ? rect.w : 0;
-  const height = Number.isFinite(rect.h) ? rect.h : 0;
+  const width = rectWidth(rect);
+  const height = rectHeight(rect);
   const cx = rect.x + width / 2;
   const cy = rect.y + height / 2;
 
@@ -77,13 +84,13 @@ export function anchorFromSide(rect: RectLike, side: Side) {
 }
 
 export function orthogonalWaypoints(
-  out: { x: number; y: number },
-  inn: { x: number; y: number },
+  out: Point,
+  inn: Point,
   parentSide: Side,
   childSide: Side,
 ) {
   'worklet';
-  const points: { x: number; y: number }[] = [];
+  const points: Point[] = [];
   const parentHorizontal = parentSide === 'left' || parentSide === 'right';
   const childHorizontal = childSide === 'left' || childSide === 'right';
 
@@ -94,7 +101,7 @@ export function orthogonalWaypoints(
     const midY = (out.y + inn.y) / 2;
     points.push({ x: out.x, y: midY }, { x: inn.x, y: midY });
   } else {
-    const via: { x: number; y: number } = parentHorizontal
+    const via: Point = parentHorizontal
       ? { x: inn.x, y: out.y }
       : { x: out.x, y: inn.y };
     points.push(via);
@@ -103,7 +110,27 @@ export function orthogonalWaypoints(
   return points;
 }
 
-export function toRoundedSvgPath(points: { x: number; y: number }[], radius = 12) {
+const pruneRedundant = (points: Point[]) => {
+  'worklet';
+  if (points.length <= 2) return points;
+  const filtered: Point[] = [points[0]];
+
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = filtered[filtered.length - 1];
+    const curr = points[i];
+    if (
+      !prev ||
+      Math.abs(prev.x - curr.x) > EPSILON ||
+      Math.abs(prev.y - curr.y) > EPSILON
+    ) {
+      filtered.push(curr);
+    }
+  }
+
+  return filtered;
+};
+
+export function toRoundedSvgPath(points: Point[], radius = 12) {
   'worklet';
   if (!points.length) return '';
 
@@ -139,7 +166,7 @@ export function toRoundedSvgPath(points: { x: number; y: number }[], radius = 12
   return path;
 }
 
-export function arrowHeadPath(tail: { x: number; y: number }, tip: { x: number; y: number }, length = 16, width = 10) {
+export function arrowHeadPath(tail: Point, tip: Point, length = 16, width = 10) {
   'worklet';
   const dx = tip.x - tail.x;
   const dy = tip.y - tail.y;
@@ -173,4 +200,107 @@ export function cycleSides(index: number) {
   'worklet';
   const idx = ((index % SIDES.length) + SIDES.length) % SIDES.length;
   return SIDES[idx];
+}
+
+export type SideAnchor = { side: Side; anchor: Point };
+
+export interface RoundedPathResult {
+  d: string;
+  points: Point[];
+  from: SideAnchor;
+  to: SideAnchor;
+}
+
+export function sideAndAnchor(rectA: RectLike, rectB: RectLike): SideAnchor {
+  'worklet';
+  const width = rectWidth(rectA);
+  const height = rectHeight(rectA);
+  const centerA = {
+    x: rectA.x + width / 2,
+    y: rectA.y + height / 2,
+  };
+  const centerB = {
+    x: rectB.x + rectWidth(rectB) / 2,
+    y: rectB.y + rectHeight(rectB) / 2,
+  };
+
+  const dx = centerB.x - centerA.x;
+  const dy = centerB.y - centerA.y;
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+
+  let side: Side;
+  if (adx > ady) {
+    side = dx >= 0 ? 'right' : 'left';
+  } else {
+    side = dy >= 0 ? 'bottom' : 'top';
+  }
+
+  let anchor: Point;
+  switch (side) {
+    case 'left':
+      anchor = { x: rectA.x, y: centerA.y };
+      break;
+    case 'right':
+      anchor = { x: rectA.x + width, y: centerA.y };
+      break;
+    case 'top':
+      anchor = { x: centerA.x, y: rectA.y };
+      break;
+    default:
+      anchor = { x: centerA.x, y: rectA.y + height };
+      break;
+  }
+
+  return { side, anchor };
+}
+
+export function buildRoundedOrthogonalPath(
+  from: SideAnchor,
+  to: SideAnchor,
+  radius = 12,
+  padding?: number,
+): RoundedPathResult {
+  'worklet';
+  const effectiveRadius = Math.max(radius, 4);
+  const travel = padding ?? Math.max(effectiveRadius * 1.8, 18);
+
+  const fromVec = sideVec(from.side);
+  const toVec = sideVec(to.side);
+
+  const out = {
+    x: from.anchor.x + fromVec.x * travel,
+    y: from.anchor.y + fromVec.y * travel,
+  };
+
+  const inn = {
+    x: to.anchor.x + toVec.x * travel,
+    y: to.anchor.y + toVec.y * travel,
+  };
+
+  const middle = orthogonalWaypoints(out, inn, from.side, to.side);
+  const rawPoints = [
+    { x: from.anchor.x, y: from.anchor.y },
+    out,
+    ...middle,
+    inn,
+    { x: to.anchor.x, y: to.anchor.y },
+  ];
+
+  const points = pruneRedundant(rawPoints);
+  const d = toRoundedSvgPath(points, effectiveRadius);
+
+  return { d, points, from, to };
+}
+
+export function edgePathForRects(
+  rectA: RectLike,
+  rectB: RectLike,
+  radius = 12,
+  padding?: number,
+): RoundedPathResult {
+  'worklet';
+  const from = sideAndAnchor(rectA, rectB);
+  const to = sideAndAnchor(rectB, rectA);
+  return buildRoundedOrthogonalPath(from, to, radius, padding);
 }
