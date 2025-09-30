@@ -9,7 +9,6 @@ export type SVs = {
   w: SharedValue<number>;
   h: SharedValue<number>;
   panRef?: HandlerRef;
-  tapRef?: HandlerRef;
 };
 
 type Ctx = {

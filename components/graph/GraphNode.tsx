@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, Platform, UIManager, findNodeHandle } from 'react-native';
-import {
-  LongPressGestureHandler,
-  PanGestureHandler,
-  TapGestureHandler,
-  State,
-  type LongPressGestureHandlerStateChangeEvent,
-  type TapGestureHandlerStateChangeEvent,
-} from 'react-native-gesture-handler';
+import { Pressable, View, Text, Platform, UIManager, findNodeHandle } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import type { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -34,7 +27,6 @@ interface GraphNodeProps {
   onPress?: () => void;
   onLongPress?: () => void;
   canvasPanRef?: React.RefObject<any>;
-  canvasTapRef?: React.RefObject<any>;
 }
 
 export function GraphNode({
@@ -49,7 +41,6 @@ export function GraphNode({
   onLongPress,
   color,
   canvasPanRef,
-  canvasTapRef,
 }: GraphNodeProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -62,14 +53,12 @@ export function GraphNode({
   const scale = useSharedValue(1);
   const viewRef = useRef<Animated.View>(null);
   const panRef = useRef<PanGestureHandler>(null);
-  const tapRef = useRef<TapGestureHandler>(null);
-  const longPressRef = useRef<LongPressGestureHandler>(null);
   const measureRaf = useRef<number | null>(null);
 
   const { register, unregister } = useGraphRegistry();
 
   useEffect(() => {
-    register(id, { x, y, w, h, panRef, tapRef });
+    register(id, { x, y, w, h, panRef });
     return () => unregister(id);
   }, [id, register, unregister, x, y, w, h]);
 
@@ -158,161 +147,135 @@ export function GraphNode({
     },
   });
 
-  const handleTap = useCallback(
-    (event: TapGestureHandlerStateChangeEvent) => {
-      if (event.nativeEvent.state === State.END && onPress) {
-        onPress();
-      }
-    },
-    [onPress],
-  );
+  const handlePress = useCallback(() => {
+    if (onPress) {
+      onPress();
+    }
+  }, [onPress]);
 
-  const handleLongPress = useCallback(
-    (event: LongPressGestureHandlerStateChangeEvent) => {
-      if (event.nativeEvent.state === State.ACTIVE && onLongPress) {
-        onLongPress();
-      }
-    },
-    [onLongPress],
-  );
+  const handleLongPress = useCallback(() => {
+    if (onLongPress) {
+      onLongPress();
+    }
+  }, [onLongPress]);
 
   const simultaneousPanHandlers = useMemo(() => {
-    const refs = [tapRef, longPressRef] as React.RefObject<any>[];
-    if (canvasPanRef) refs.push(canvasPanRef);
-    if (canvasTapRef) refs.push(canvasTapRef);
-    return refs;
-  }, [canvasPanRef, canvasTapRef]);
-
-  const simultaneousTapHandlers = useMemo(() => {
-    const refs = [panRef, longPressRef] as React.RefObject<any>[];
-    if (canvasPanRef) refs.push(canvasPanRef);
-    return refs;
-  }, [canvasPanRef]);
-
-  const simultaneousLongPressHandlers = useMemo(() => {
-    const refs = [panRef] as React.RefObject<any>[];
+    const refs: React.RefObject<any>[] = [];
     if (canvasPanRef) refs.push(canvasPanRef);
     return refs;
   }, [canvasPanRef]);
 
   return (
-    <LongPressGestureHandler
-      ref={longPressRef}
-      minDurationMs={500}
-      maxDistance={35}
-      simultaneousHandlers={simultaneousLongPressHandlers}
-      onHandlerStateChange={handleLongPress}
+    <PanGestureHandler
+      ref={panRef}
+      activeOffsetX={[-8, 8]}
+      activeOffsetY={[-8, 8]}
+      minPointers={1}
+      avgTouches
+      simultaneousHandlers={simultaneousPanHandlers}
+      shouldCancelWhenOutside={false}
+      onGestureEvent={panGesture}
+      onHandlerStateChange={panGesture}
     >
-      <TapGestureHandler
-        ref={tapRef}
-        maxDurationMs={250}
-        maxDist={8}
-        numberOfTaps={1}
-        enabled={!!onPress}
-        simultaneousHandlers={simultaneousTapHandlers}
-        onHandlerStateChange={handleTap}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-      >
-        <PanGestureHandler
-          ref={panRef}
-          activeOffsetX={[-8, 8]}
-          activeOffsetY={[-8, 8]}
-          minPointers={1}
-          avgTouches
-          simultaneousHandlers={simultaneousPanHandlers}
-          shouldCancelWhenOutside={false}
-          onGestureEvent={panGesture}
-          onHandlerStateChange={panGesture}
-        >
-          <Animated.View
-            ref={viewRef}
-            collapsable={false}
-            onLayout={onLayout}
-            renderToHardwareTextureAndroid
-            style={[
-              {
-                position: 'absolute',
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.card,
-                borderWidth: 2,
-                borderColor: accentColor,
-                minWidth: 180,
-                maxWidth: 220,
-                zIndex: 10,
-                overflow: 'hidden',
-                ...Platform.select({
-                  default: {
-                    shadowColor: colors.shadow,
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 8,
-                    elevation: 6,
-                  },
-                  web: {
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    cursor: 'grab',
-                    touchAction: 'none',
-                  },
-                }),
+      <Animated.View
+        ref={viewRef}
+        collapsable={false}
+        onLayout={onLayout}
+        renderToHardwareTextureAndroid
+        style={[
+          {
+            position: 'absolute',
+            zIndex: 10,
+            ...Platform.select({
+              default: {
+                shadowColor: colors.shadow,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 6,
               },
-              animatedStyle,
-            ]}
-          >
-            {/* Header */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <View
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 12,
-                  backgroundColor: accentColor,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: 8,
-                }}
-              >
-                <Circle size={12} color="#FFFFFF" />
-              </View>
-              {status && <StatusChip status={status} size="small" />}
-            </View>
-
-            {/* Title */}
-            <Text
-              style={{
-                fontWeight: '600',
-                fontSize: 14,
-                color: colors.text,
-                marginBottom: 4,
-                lineHeight: 18,
-              }}
-            >
-              {title}
-            </Text>
-
-            {/* Footer */}
+              web: {
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                cursor: 'grab',
+                touchAction: 'none',
+              },
+            }),
+          },
+          animatedStyle,
+        ]}
+      >
+        <Pressable
+          onPress={handlePress}
+          onLongPress={handleLongPress}
+          delayLongPress={500}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={({ pressed }) => [
+            {
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.card,
+              borderWidth: 2,
+              borderColor: accentColor,
+              minWidth: 180,
+              maxWidth: 220,
+              overflow: 'hidden',
+              opacity: pressed ? 0.95 : 1,
+            },
+          ]}
+        >
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
             <View
               style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: accentColor,
                 alignItems: 'center',
-                marginTop: 8,
+                justifyContent: 'center',
+                marginRight: 8,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                {attachments && attachments.length > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                    <Paperclip size={12} color={colors.textSecondary} />
-                    <Text style={{ fontSize: 10, color: colors.textSecondary }}>
-                      {attachments.length}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <Circle size={12} color="#FFFFFF" />
             </View>
-          </Animated.View>
-        </PanGestureHandler>
-      </TapGestureHandler>
-    </LongPressGestureHandler>
+            {status && <StatusChip status={status} size="small" />}
+          </View>
+
+          {/* Title */}
+          <Text
+            style={{
+              fontWeight: '600',
+              fontSize: 14,
+              color: colors.text,
+              marginBottom: 4,
+              lineHeight: 18,
+            }}
+          >
+            {title}
+          </Text>
+
+          {/* Footer */}
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 8,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {attachments && attachments.length > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Paperclip size={12} color={colors.textSecondary} />
+                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+                    {attachments.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </Pressable>
+      </Animated.View>
+    </PanGestureHandler>
   );
 }
