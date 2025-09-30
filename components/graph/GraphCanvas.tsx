@@ -244,7 +244,6 @@ function GraphCanvasInner({
                         onPress={() => onNodePress?.(n.id)}
                         onLongPress={() => onNodeLongPress?.(n.id)}
                         canvasPanRef={panRef}
-                        canvasTapRef={tapRef}
                       />
                     ))}
                   </View>
