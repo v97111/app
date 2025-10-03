@@ -51,17 +51,28 @@ function startExpo() {
   console.log(
     `[launcher] Starting Expo dev server (mode: ${label || "custom"})...`
   );
+
+  const env = {
+    ...process.env,
+    EXPO_NO_TELEMETRY: "1",
+    EXPO_USE_DEV_SERVER: "1"
+  };
+
+  if (!startArgs.includes("--tunnel")) {
+    env.EXPO_NO_TUNNEL = "1";
+    env.EXPO_NO_AUTO_TUNNEL = "1";
+  }
+
+  if (process.env.CI === undefined) {
+    delete env.CI;
+  }
+
   const child = spawn(
     "npx",
     ["expo", "start", ...startArgs],
     {
       cwd: path.join(__dirname, ".."), // project root (one level up)
-      env: {
-        ...process.env,
-        CI: "1",
-        EXPO_NO_TELEMETRY: "1",
-        EXPO_USE_DEV_SERVER: "1"
-      },
+      env,
       stdio: ["ignore", "pipe", "pipe"]
     }
   );
