@@ -12,15 +12,8 @@ fs.mkdirSync(RUNTIME_DIR, { recursive: true });
 
 const URL_REGEX = /(exp(?:s)?:\/\/[^\s]+|https?:\/\/(?:u\.expo\.dev|expo\.dev)[^\s]*)/i;
 
-let latestUrl = "";
-
 function writeUrl(url) {
-  try {
-    latestUrl = url;
-    fs.writeFileSync(URL_FILE, JSON.stringify({ url, ts: Date.now() }), "utf8");
-  } catch (err) {
-    console.error("[launcher] Failed to write Expo URL", err);
-  }
+  try { fs.writeFileSync(URL_FILE, JSON.stringify({ url, ts: Date.now() }), "utf8"); } catch {}
 }
 
 function startExpo() {
@@ -29,7 +22,7 @@ function startExpo() {
     "npx",
     ["expo", "start", "--tunnel", "--non-interactive"],
     {
-      cwd: path.join(__dirname, ".."),
+      cwd: path.join(__dirname, ".."), // project root (one level up)
       env: {
         ...process.env,
         CI: "false",
@@ -40,39 +33,23 @@ function startExpo() {
     }
   );
 
-  if (latestUrl) {
-    writeUrl(latestUrl);
-  }
-
   child.stdout.on("data", (buf) => {
     const line = buf.toString();
     process.stdout.write(line);
     const m = line.match(URL_REGEX);
-    if (m) {
-      const url = m[1];
-      console.log("[launcher] Detected Expo URL:", url);
-      writeUrl(url);
-    }
+    if (m) { const url = m[1]; console.log("[launcher] Detected Expo URL:", url); writeUrl(url); }
   });
 
   child.stderr.on("data", (buf) => {
     const line = buf.toString();
     process.stderr.write(line);
     const m = line.match(URL_REGEX);
-    if (m) {
-      const url = m[1];
-      console.log("[launcher] Detected Expo URL (stderr):", url);
-      writeUrl(url);
-    }
+    if (m) { const url = m[1]; console.log("[launcher] Detected Expo URL (stderr):", url); writeUrl(url); }
   });
 
   child.on("exit", (code) => {
     console.error("[launcher] Expo process exited with code", code, "- restarting in 5s");
     setTimeout(startExpo, 5000);
-  });
-
-  child.on("error", (error) => {
-    console.error("[launcher] Failed to start Expo process:", error);
   });
 }
 

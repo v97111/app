@@ -23,14 +23,10 @@ app.get("/config.js", (_req, res) => {
   let url = process.env.EXPO_URL || "";
   try {
     if (fs.existsSync(RUNTIME_URL_FILE)) {
-      const data = JSON.parse(fs.readFileSync(RUNTIME_URL_FILE, "utf8"));
-      if (data && data.url) {
-        url = data.url;
-      }
+      const j = JSON.parse(fs.readFileSync(RUNTIME_URL_FILE, "utf8"));
+      if (j && j.url) url = j.url;
     }
-  } catch (error) {
-    console.warn("[launcher] Failed to read Expo runtime URL:", error);
-  }
+  } catch {}
   res.end(`window.__EXPO_URL__ = ${JSON.stringify(url)};`);
 });
 
