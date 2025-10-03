@@ -29,6 +29,7 @@
         <div><strong>Expo URL:</strong> <code id="url"></code></div>
         <div class="warn" id="warn"></div>
       </div>
+      <div class="row" id="statusRow" style="opacity: 0.75; font-size: 0.9rem;"></div>
       <div class="qr"><canvas id="qrcode"></canvas></div>
       <a id="open" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">Open in Expo Go</a>
     </div>
@@ -49,22 +50,82 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script>
     (function () {
-      const expoUrl = window.__EXPO_URL__ || "";
+      const initial = window.__EXPO_CONFIG__ || { url: window.__EXPO_URL__ || "", source: "none" };
       const urlEl = document.getElementById("url");
       const warnEl = document.getElementById("warn");
       const btn = document.getElementById("open");
       const canvas = document.getElementById("qrcode");
+      const statusRow = document.getElementById("statusRow");
 
-      urlEl.textContent = expoUrl || "(not set)";
-      btn.href = expoUrl || "#";
+      let lastUrl = "";
+      let isPolling = false;
 
-      if (!expoUrl) {
-        warnEl.textContent = "Set EXPO_URL env var on Railway to show QR and enable the button.";
-      } else {
-        QRCode.toCanvas(canvas, expoUrl, { width: 260 }, function (err) {
+      function clearCanvas() {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width || 0, canvas.height || 0);
+        }
+      }
+
+      function describeSource(info) {
+        if (!info.url) return "Waiting for Expo dev server to report a tunnel URL...";
+        if (info.source === "env") return "Using EXPO_URL from Railway environment variables.";
+        if (info.source === "runtime") {
+          const updated = info.updated ? new Date(info.updated).toLocaleString() : "just now";
+          return `Detected from Expo CLI logs (updated ${updated}).`;
+        }
+        return "URL detected.";
+      }
+
+      function applyInfo(info) {
+        const url = info.url || "";
+        urlEl.textContent = url || "(not yet detected)";
+        btn.href = url || "#";
+        btn.setAttribute("aria-disabled", url ? "false" : "true");
+        warnEl.textContent = url ? "" : "The Expo tunnel starts automatically on Railway. This page will refresh when it is ready.";
+        statusRow.textContent = describeSource(info);
+
+        if (!url) {
+          if (lastUrl) {
+            clearCanvas();
+          }
+          lastUrl = "";
+          return;
+        }
+
+        if (url === lastUrl) return;
+        lastUrl = url;
+
+        QRCode.toCanvas(canvas, url, { width: 260 }, function (err) {
           if (err) console.error(err);
         });
       }
+
+      async function poll() {
+        if (isPolling) return;
+        isPolling = true;
+
+        const pollIntervalMs = 3500;
+
+        async function loop() {
+          try {
+            const res = await fetch(`/runtime.json?ts=${Date.now()}`, { cache: "no-store" });
+            if (res.ok) {
+              const info = await res.json();
+              applyInfo(info);
+            }
+          } catch (err) {
+            console.warn("Failed to fetch runtime info", err);
+          } finally {
+            setTimeout(loop, pollIntervalMs);
+          }
+        }
+
+        loop();
+      }
+
+      applyInfo(initial);
+      poll();
     })();
   </script>
 </body>
