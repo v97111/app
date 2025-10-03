@@ -8,7 +8,7 @@ This repo includes a minimal web launcher you can deploy to Railway. It shows a 
 **Deploy**
 - Click "New Project" on Railway and connect this repo.
 - Railway now boots both the Expo Metro server **and** this launcher page. No separate tunnel step is required.
-- By default the launcher starts Expo in **LAN** mode to avoid interactive ngrok prompts in CI environments.
+- By default the launcher starts Expo in **LAN** mode and explicitly disables tunnels so the CLI never prompts for `@expo/ngrok` in CI environments.
 - To force a tunnel, set `EXPO_LAUNCH_MODE=tunnel` and make sure `@expo/ngrok` is installed/available.
 - After deploy, review the logs to confirm that the Expo URL is detected automatically (or set the **EXPO_URL** env var manually as a fallback).
 - Redeploy; visit the Railway URL to see the QR and button.
