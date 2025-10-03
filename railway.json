@@ -5,7 +5,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "npm --prefix launcher install && npm --prefix launcher start",
+    "startCommand": "npm --prefix launcher install && node launcher/start-expo.js && npm --prefix launcher start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100
   }
