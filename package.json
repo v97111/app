@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 npx expo start",
+    "postinstall": "npm --prefix launcher install --no-audit --no-fund",
     "build:web": "expo export --platform web",
     "lint": "expo lint"
   },
