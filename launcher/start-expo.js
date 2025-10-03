@@ -12,15 +12,48 @@ fs.mkdirSync(RUNTIME_DIR, { recursive: true });
 
 const URL_REGEX = /(exp(?:s)?:\/\/[^\s]+|https?:\/\/(?:u\.expo\.dev|expo\.dev)[^\s]*)/i;
 
+function parseArgs(value) {
+  if (!value) return [];
+  return (
+    value
+      .match(/(?:[^\s"]+|"[^"]*")+/g)
+      ?.map((token) => token.replace(/^"|"$/g, ""))
+      .filter(Boolean) ?? []
+  );
+}
+
+function resolveStartArgs() {
+  const explicitArgs = parseArgs(process.env.EXPO_START_ARGS);
+  if (explicitArgs.length) {
+    return { args: explicitArgs, label: explicitArgs.join(" ") };
+  }
+
+  const mode = (process.env.EXPO_LAUNCH_MODE || "").trim().toLowerCase();
+  if (mode === "tunnel") {
+    return { args: ["--tunnel"], label: "tunnel" };
+  }
+  if (mode === "localhost") {
+    return { args: ["--localhost"], label: "localhost" };
+  }
+  if (mode === "lan" || mode === "lan-only") {
+    return { args: ["--lan"], label: "LAN" };
+  }
+
+  return { args: ["--lan"], label: "LAN" };
+}
+
 function writeUrl(url) {
   try { fs.writeFileSync(URL_FILE, JSON.stringify({ url, ts: Date.now() }), "utf8"); } catch {}
 }
 
 function startExpo() {
-  console.log("[launcher] Starting Expo dev server in CI tunnel mode...");
+  const { args: startArgs, label } = resolveStartArgs();
+  console.log(
+    `[launcher] Starting Expo dev server (mode: ${label || "custom"})...`
+  );
   const child = spawn(
     "npx",
-    ["expo", "start", "--tunnel"],
+    ["expo", "start", ...startArgs],
     {
       cwd: path.join(__dirname, ".."), // project root (one level up)
       env: {

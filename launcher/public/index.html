@@ -37,7 +37,9 @@
     <div class="card">
       <h3>Tips</h3>
       <ul>
-        <li>If you use <code>npx expo start --tunnel</code>, copy the link that opens your project in Expo Go and set it as <code>EXPO_URL</code> in Railway.</li>
+        <li>By default the dev server runs in <strong>LAN</strong> mode to avoid interactive tunnel prompts.</li>
+        <li>Set <code>EXPO_LAUNCH_MODE=tunnel</code> (and ensure <code>@expo/ngrok</code> is available) if you want Railway to create a tunnel automatically.</li>
+        <li>Otherwise run <code>npx expo start --tunnel</code> locally, copy the Expo Go link, and set it as <code>EXPO_URL</code> in Railway.</li>
         <li>For published apps, use your project page like <code>https://expo.dev/@ACCOUNT/SLUG?service=expo-go</code>.</li>
         <li>Make sure your phone has <strong>Expo Go</strong> installed.</li>
       </ul>
@@ -67,8 +69,8 @@
         }
       }
 
-      function describeSource(info) {
-        if (!info.url) return "Waiting for Expo dev server to report a tunnel URL...";
+        function describeSource(info) {
+          if (!info.url) return "Waiting for Expo dev server to report a URL...";
         if (info.source === "env") return "Using EXPO_URL from Railway environment variables.";
         if (info.source === "runtime") {
           const updated = info.updated ? new Date(info.updated).toLocaleString() : "just now";
@@ -82,7 +84,9 @@
         urlEl.textContent = url || "(not yet detected)";
         btn.href = url || "#";
         btn.setAttribute("aria-disabled", url ? "false" : "true");
-        warnEl.textContent = url ? "" : "The Expo tunnel starts automatically on Railway. This page will refresh when it is ready.";
+        warnEl.textContent = url
+          ? ""
+          : "Waiting for the Expo dev server to report a URL. Provide EXPO_URL or enable tunnelling if required.";
         statusRow.textContent = describeSource(info);
 
         if (!url) {
