@@ -1,13 +1,17 @@
 import 'react-native-reanimated';
 import 'react-native-gesture-handler';
-import 'react-native-url-polyfill/auto';
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
+import { setupURLPolyfill } from 'react-native-url-polyfill';
 import { UserProvider } from '@/contexts/UserContext';
+
+if (Platform.OS !== 'web') {
+  setupURLPolyfill();
+}
 
 // Ignore specific warnings that don't affect functionality
 LogBox.ignoreLogs([
