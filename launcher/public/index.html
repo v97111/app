@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Open in Expo Go</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; padding: 24px; background: #0b0f14; color: #e6edf3; }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; margin: 0 0 8px; }
+    p { opacity: 0.85; }
+    .card { background: #11161d; border: 1px solid #223; border-radius: 12px; padding: 24px; margin-top: 16px; }
+    .qr { display: flex; justify-content: center; align-items: center; padding: 20px; }
+    #qrcode { background: #fff; padding: 12px; border-radius: 8px; }
+    .btn { display: inline-block; padding: 14px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 12px; }
+    .btn-primary { background: #4fbcff; color: #081018; }
+    .warn { color: #ffdb6d; }
+    .grid { display: grid; gap: 12px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    code { background: #0d1620; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Open in Expo Go</h1>
+    <p>Scan this QR with the <strong>Expo Go</strong> app or tap the button below.</p>
+    <div class="card grid">
+      <div class="row">
+        <div><strong>Expo URL:</strong> <code id="url"></code></div>
+        <div class="warn" id="warn"></div>
+      </div>
+      <div class="qr"><canvas id="qrcode"></canvas></div>
+      <a id="open" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">Open in Expo Go</a>
+    </div>
+
+    <div class="card">
+      <h3>Tips</h3>
+      <ul>
+        <li>If you use <code>npx expo start --tunnel</code>, copy the link that opens your project in Expo Go and set it as <code>EXPO_URL</code> in Railway.</li>
+        <li>For published apps, use your project page like <code>https://expo.dev/@ACCOUNT/SLUG?service=expo-go</code>.</li>
+        <li>Make sure your phone has <strong>Expo Go</strong> installed.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Config from server -->
+  <script src="/config.js"></script>
+  <!-- QR library from CDN (no build step) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    (function () {
+      const expoUrl = window.__EXPO_URL__ || "";
+      const urlEl = document.getElementById("url");
+      const warnEl = document.getElementById("warn");
+      const btn = document.getElementById("open");
+      const canvas = document.getElementById("qrcode");
+
+      urlEl.textContent = expoUrl || "(not set)";
+      btn.href = expoUrl || "#";
+
+      if (!expoUrl) {
+        warnEl.textContent = "Set EXPO_URL env var on Railway to show QR and enable the button.";
+      } else {
+        QRCode.toCanvas(canvas, expoUrl, { width: 260 }, function (err) {
+          if (err) console.error(err);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
