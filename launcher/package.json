@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "expo": "node start-expo.js",
     "start": "node server.js"
   },
   "dependencies": {

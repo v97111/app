@@ -17,6 +17,6 @@ This repo includes a minimal web launcher you can deploy to Railway. It shows a 
 - Direct deep link format also works (exp:// or exps://) if provided by Expo.
 
 **Notes**
-- Railway now serves the launcher page **and** runs the Expo Metro dev server through `npx expo start --tunnel`. Scan the QR code on the Railway page to open the live tunnel.
+- Railway now serves the launcher page **and** runs the Expo Metro dev server through `npx expo start --tunnel --non-interactive`. The launcher starts the CLI in the background, parses the Expo URL from logs, writes it to `/config.js`, and renders a live QR code with an "Open in Expo Go" button.
 - If the Expo CLI cannot emit a tunnel URL automatically (for example, if tunnels are disabled), set the **EXPO_URL** environment variable and the launcher will fall back to it.
 - Make sure your phone has **Expo Go** installed.
