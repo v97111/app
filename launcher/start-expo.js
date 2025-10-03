@@ -20,12 +20,12 @@ function startExpo() {
   console.log("[launcher] Starting Expo dev server in CI tunnel mode...");
   const child = spawn(
     "npx",
-    ["expo", "start", "--tunnel", "--non-interactive"],
+    ["expo", "start", "--tunnel"],
     {
       cwd: path.join(__dirname, ".."), // project root (one level up)
       env: {
         ...process.env,
-        CI: "false",
+        CI: "1",
         EXPO_NO_TELEMETRY: "1",
         EXPO_USE_DEV_SERVER: "1"
       },
