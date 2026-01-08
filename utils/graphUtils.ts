@@ -211,6 +211,14 @@ export interface RoundedPathResult {
   to: SideAnchor;
 }
 
+export interface BezierPathResult {
+  d: string;
+  from: SideAnchor;
+  to: SideAnchor;
+  c1: Point;
+  c2: Point;
+}
+
 export function sideAndAnchor(rectA: RectLike, rectB: RectLike): SideAnchor {
   'worklet';
   const width = rectWidth(rectA);
@@ -303,4 +311,38 @@ export function edgePathForRects(
   const from = sideAndAnchor(rectA, rectB);
   const to = sideAndAnchor(rectB, rectA);
   return buildRoundedOrthogonalPath(from, to, radius, padding);
+}
+
+export function bezierPathForRects(
+  rectA: RectLike,
+  rectB: RectLike,
+  curvature = 0.35,
+  minStrength = 40,
+  maxStrength = 240,
+): BezierPathResult {
+  'worklet';
+  const from = sideAndAnchor(rectA, rectB);
+  const to = sideAndAnchor(rectB, rectA);
+
+  const dx = to.anchor.x - from.anchor.x;
+  const dy = to.anchor.y - from.anchor.y;
+  const distance = Math.hypot(dx, dy);
+  const strength = Math.min(Math.max(distance * curvature, minStrength), maxStrength);
+
+  const fromVec = sideVec(from.side);
+  const toVec = sideVec(to.side);
+
+  const c1 = {
+    x: from.anchor.x + fromVec.x * strength,
+    y: from.anchor.y + fromVec.y * strength,
+  };
+
+  const c2 = {
+    x: to.anchor.x + toVec.x * strength,
+    y: to.anchor.y + toVec.y * strength,
+  };
+
+  const d = `M ${from.anchor.x} ${from.anchor.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${to.anchor.x} ${to.anchor.y}`;
+
+  return { d, from, to, c1, c2 };
 }

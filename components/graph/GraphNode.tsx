@@ -8,12 +8,15 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withRepeat,
+  withTiming,
 } from 'react-native-reanimated';
 import { useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useGraphRegistry } from './GraphRegistry';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Circle, Paperclip } from 'lucide-react-native';
+import type { NodeMeta } from '@/types';
 
 interface GraphNodeProps {
   id: string;
@@ -23,6 +26,7 @@ interface GraphNodeProps {
   status?: 'todo' | 'in-progress' | 'blocked' | 'done';
   attachments?: any[];
   color?: string;
+  meta?: NodeMeta | null;
   onCommit?: (id: string, x: number, y: number) => void;
   onPress?: () => void;
   onLongPress?: () => void;
@@ -40,17 +44,20 @@ export function GraphNode({
   onPress,
   onLongPress,
   color,
+  meta,
   canvasPanRef,
 }: GraphNodeProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const accentColor = color ?? colors.primary;
+  const nodeType = meta?.nodeType === 'task' ? 'Task' : 'Process';
 
   const x = useSharedValue(initialX);
   const y = useSharedValue(initialY);
   const w = useSharedValue(200);
   const h = useSharedValue(120);
   const scale = useSharedValue(1);
+  const pulse = useSharedValue(0.6);
   const viewRef = useRef<Animated.View>(null);
   const panRef = useRef<PanGestureHandler>(null);
   const measureRaf = useRef<number | null>(null);
@@ -66,6 +73,18 @@ export function GraphNode({
     x.value = initialX;
     y.value = initialY;
   }, [initialX, initialY, x, y]);
+
+  useEffect(() => {
+    if (status === 'in-progress') {
+      pulse.value = withRepeat(
+        withTiming(1, { duration: 900 }),
+        -1,
+        true,
+      );
+    } else {
+      pulse.value = withTiming(0, { duration: 200 });
+    }
+  }, [pulse, status]);
 
   const scheduleMeasure = useCallback(() => {
     if (measureRaf.current !== null) {
@@ -106,6 +125,11 @@ export function GraphNode({
       { translateY: y.value },
       { scale: scale.value },
     ],
+  }));
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+    transform: [{ scale: 0.9 + pulse.value * 0.2 }],
   }));
 
   const onLayout = useCallback((event: any) => {
@@ -239,7 +263,40 @@ export function GraphNode({
               <Circle size={12} color="#FFFFFF" />
             </View>
             {status && <StatusChip status={status} size="small" />}
+            <View
+              style={{
+                marginLeft: 8,
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 999,
+                backgroundColor: `${accentColor}22`,
+              }}
+            >
+              <Text style={{ fontSize: 10, color: accentColor, fontWeight: '600' }}>
+                {nodeType}
+              </Text>
+            </View>
           </View>
+
+          {status === 'in-progress' && (
+            <Animated.View
+              style={[
+                {
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: accentColor,
+                  shadowColor: accentColor,
+                  shadowOpacity: 0.8,
+                  shadowRadius: 6,
+                },
+                pulseStyle,
+              ]}
+            />
+          )}
 
           {/* Title */}
           <Text

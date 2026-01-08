@@ -4,7 +4,7 @@ import { Path } from 'react-native-svg';
 import { useGraphSnapshot } from './GraphRegistry';
 import {
   arrowHeadPath,
-  edgePathForRects,
+  bezierPathForRects,
 } from '@/utils/graphUtils';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -19,9 +19,7 @@ interface GraphEdgeProps {
 
 const DEFAULT_COLOR = '#0E7AFE';
 const EDGE_RADIUS = 14;
-const EDGE_PADDING = 20;
 const EPSILON = 0.5;
-
 export function GraphEdge({ from, to, strokeWidth = 2.5, color = DEFAULT_COLOR, kind }: GraphEdgeProps) {
   const graph = useGraphSnapshot();
   const parent = graph.get(from);
@@ -52,19 +50,27 @@ export function GraphEdge({ from, to, strokeWidth = 2.5, color = DEFAULT_COLOR, 
       return { path: '', arrow: '' };
     }
 
-    const pathResult = edgePathForRects(parentRect, childRect, EDGE_RADIUS, EDGE_PADDING);
+    const pathResult = bezierPathForRects(parentRect, childRect);
 
-    if (!pathResult.d || pathResult.points.length < 2) {
+    if (!pathResult.d) {
       return { path: '', arrow: '' };
     }
 
-    const points = pathResult.points;
-    const tip = points[points.length - 1];
-    const tail = points[points.length - 2];
+    const tip = pathResult.to.anchor;
+    const approachX = tip.x - pathResult.c2.x;
+    const approachY = tip.y - pathResult.c2.y;
+    const approachLength = Math.hypot(approachX, approachY);
 
-    if (!tip || !tail || (Math.abs(tail.x - tip.x) < EPSILON && Math.abs(tail.y - tip.y) < EPSILON)) {
+    if (approachLength < EPSILON) {
       return { path: pathResult.d, arrow: '' };
     }
+
+    const ux = approachX / approachLength;
+    const uy = approachY / approachLength;
+    const tail = {
+      x: tip.x - ux * (EDGE_RADIUS + 6),
+      y: tip.y - uy * (EDGE_RADIUS + 6),
+    };
 
     const arrow = arrowHeadPath(tail, tip, EDGE_RADIUS + 4, EDGE_RADIUS);
     return { path: pathResult.d, arrow };
@@ -77,6 +83,16 @@ export function GraphEdge({ from, to, strokeWidth = 2.5, color = DEFAULT_COLOR, 
 
   return (
     <>
+      <AnimatedPath
+        animatedProps={animatedEdgeProps}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth * 3}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.18}
+        pointerEvents="none"
+      />
       <AnimatedPath
         animatedProps={animatedEdgeProps}
         fill="none"
