@@ -113,7 +113,13 @@ export default function ProjectDetailScreen() {
 
     const finalPosition = nodePosition ?? { x: 100, y: 100 };
     const now = new Date().toISOString();
-    const meta = childData?.meta ?? (standaloneRoot ? { standaloneRoot: true } : undefined);
+    const meta = {
+      ...(standaloneRoot ? { standaloneRoot: true } : {}),
+      ...(childData?.meta ?? {}),
+    };
+    if (!meta.nodeType) {
+      meta.nodeType = 'process';
+    }
 
     const newNode: Node = {
       id: Date.now().toString(),
@@ -131,7 +137,7 @@ export default function ProjectDetailScreen() {
       ...childData,
       parentId: effectiveParentId,
       position: childData?.position ?? finalPosition,
-      meta,
+      meta: Object.keys(meta).length ? meta : undefined,
     };
 
     try {
@@ -156,8 +162,12 @@ export default function ProjectDetailScreen() {
     }
   };
 
-  const handleCanvasPress = (position: { x: number; y: number }) => {
-    handleCreateNode(undefined, position);
+  const handleCanvasPress = (
+    position: { x: number; y: number },
+    options?: { shiftKey?: boolean; source?: 'tap' | 'double-click' | 'button' },
+  ) => {
+    const nodeType = options?.shiftKey ? 'task' : 'process';
+    handleCreateNode(undefined, position, { meta: { nodeType } });
   };
 
   const handleSaveNode = async (nodeData: Partial<Node>) => {

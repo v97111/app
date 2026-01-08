@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { View, TouchableOpacity, Text, Platform, useWindowDimensions } from 'react-native';
 import { useColorScheme } from 'react-native';
-import Svg from 'react-native-svg';
+import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 import {
   PanGestureHandler,
   PinchGestureHandler,
@@ -40,7 +40,10 @@ interface GraphCanvasProps {
   onCommit?: (id: string, x: number, y: number) => void;
   onNodePress?: (id: string) => void;
   onNodeLongPress?: (id: string) => void;
-  onCanvasPress?: (position: { x: number; y: number }) => void;
+  onCanvasPress?: (
+    position: { x: number; y: number },
+    options?: { shiftKey?: boolean; source?: 'tap' | 'double-click' | 'button' },
+  ) => void;
 }
 
 function GraphCanvasInner({
@@ -57,8 +60,8 @@ function GraphCanvasInner({
   const graph = useGraphSnapshot();
 
   const canvasSize = useMemo(() => ({
-    width: Math.max(windowWidth * 2, windowWidth),
-    height: Math.max(windowHeight * 2, windowHeight),
+    width: Math.max(windowWidth * 4, windowWidth),
+    height: Math.max(windowHeight * 4, windowHeight),
   }), [windowWidth, windowHeight]);
 
   const edgesToRender = useMemo<GraphCanvasEdge[]>(() => {
@@ -96,8 +99,54 @@ function GraphCanvasInner({
   const clampScale = (value: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 
   const onCanvasTap = useCallback((position: { x: number; y: number }) => {
-    onCanvasPress?.(position);
+    onCanvasPress?.(position, { source: 'tap' });
   }, [onCanvasPress]);
+
+  const handleWheel = useCallback((event: any) => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    if (!event?.nativeEvent) {
+      return;
+    }
+
+    event.preventDefault?.();
+
+    const deltaY = event.nativeEvent.deltaY ?? event.nativeEvent.wheelDeltaY ?? 0;
+    if (deltaY === 0) {
+      return;
+    }
+
+    const zoomFactor = deltaY < 0 ? 1.08 : 0.92;
+    const nextScale = clampScale(scale.value * zoomFactor);
+    const currentScale = scale.value;
+    const locationX = event.nativeEvent.offsetX ?? event.nativeEvent.locationX ?? 0;
+    const locationY = event.nativeEvent.offsetY ?? event.nativeEvent.locationY ?? 0;
+
+    const nextTranslateX = locationX - ((locationX - translateX.value) / currentScale) * nextScale;
+    const nextTranslateY = locationY - ((locationY - translateY.value) / currentScale) * nextScale;
+
+    translateX.value = nextTranslateX;
+    translateY.value = nextTranslateY;
+    scale.value = nextScale;
+  }, [scale, translateX, translateY]);
+
+  const handleDoubleClick = useCallback((event: any) => {
+    if (Platform.OS !== 'web' || !onCanvasPress || !event?.nativeEvent) {
+      return;
+    }
+
+    const locationX = event.nativeEvent.offsetX ?? event.nativeEvent.locationX ?? 0;
+    const locationY = event.nativeEvent.offsetY ?? event.nativeEvent.locationY ?? 0;
+    const canvasX = (locationX - translateX.value) / scale.value;
+    const canvasY = (locationY - translateY.value) / scale.value;
+
+    onCanvasPress(
+      { x: canvasX, y: canvasY },
+      { shiftKey: !!event.nativeEvent.shiftKey, source: 'double-click' },
+    );
+  }, [onCanvasPress, scale, translateX, translateY]);
 
   const panGesture = useAnimatedGestureHandler<
     PanGestureHandlerGestureEvent,
@@ -165,7 +214,11 @@ function GraphCanvasInner({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View
+      style={{ flex: 1, backgroundColor: colors.background }}
+      onWheel={handleWheel}
+      onDoubleClick={handleDoubleClick}
+    >
       <PanGestureHandler
         ref={panRef}
         simultaneousHandlers={[pinchRef, tapRef]}
@@ -199,6 +252,39 @@ function GraphCanvasInner({
                 onHandlerStateChange={twoFingerTapGesture}
               >
                 <Animated.View style={{ flex: 1 }} collapsable={false}>
+                  {/* Grid layer */}
+                  <Svg
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      width: canvasSize.width,
+                      height: canvasSize.height,
+                    }}
+                  >
+                    <Defs>
+                      <Pattern
+                        id="minorGrid"
+                        width={36}
+                        height={36}
+                        patternUnits="userSpaceOnUse"
+                      >
+                        <Rect width={36} height={36} fill="none" stroke={colors.border} strokeOpacity={0.08} strokeWidth={1} />
+                      </Pattern>
+                      <Pattern
+                        id="majorGrid"
+                        width={180}
+                        height={180}
+                        patternUnits="userSpaceOnUse"
+                      >
+                        <Rect width={180} height={180} fill="none" stroke={colors.border} strokeOpacity={0.14} strokeWidth={1.2} />
+                      </Pattern>
+                    </Defs>
+                    <Rect width="100%" height="100%" fill="url(#minorGrid)" />
+                    <Rect width="100%" height="100%" fill="url(#majorGrid)" />
+                  </Svg>
+
                   {/* Edges layer */}
                   <Svg
                     pointerEvents="none"
@@ -240,6 +326,7 @@ function GraphCanvasInner({
                         status={n.status}
                         attachments={n.attachments}
                         color={n.color}
+                        meta={n.meta}
                         onCommit={onCommit}
                         onPress={() => onNodePress?.(n.id)}
                         onLongPress={() => onNodeLongPress?.(n.id)}
@@ -288,10 +375,10 @@ function GraphCanvasInner({
           </TouchableOpacity>
           <TouchableOpacity 
             style={{ padding: 8, alignItems: 'center' }} 
-            onPress={resetView}
-          >
-            <RotateCcw size={20} color={colors.text} />
-          </TouchableOpacity>
+        onPress={resetView}
+      >
+        <RotateCcw size={20} color={colors.text} />
+      </TouchableOpacity>
       </View>
 
       {/* Add Node Button */}
@@ -318,7 +405,7 @@ function GraphCanvasInner({
             },
           }),
         }}
-        onPress={() => onCanvasPress?.({ x: 100, y: 100 })}
+        onPress={() => onCanvasPress?.({ x: 100, y: 100 }, { source: 'button' })}
       >
         <Plus size={24} color="#FFFFFF" />
       </TouchableOpacity>
@@ -340,7 +427,9 @@ function GraphCanvasInner({
         }),
       }}>
         <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-          Two-finger tap to create nodes
+          {Platform.OS === 'web'
+            ? 'Double-click to create nodes • Shift + double-click for tasks'
+            : 'Two-finger tap to create nodes'}
         </Text>
       </View>
     </View>

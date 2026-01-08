@@ -25,7 +25,10 @@ interface ProjectCanvasProps {
   onNodeMove: (nodeId: string, position: { x: number; y: number }) => void;
   onCreateNode: (parentId?: string, position?: { x: number; y: number }, nodeData?: any) => void;
   onUpdateNode: (nodeId: string, updates: Partial<Node>) => void;
-  onCanvasPress: (position: { x: number; y: number }) => void;
+  onCanvasPress: (
+    position: { x: number; y: number },
+    options?: { shiftKey?: boolean; source?: 'tap' | 'double-click' | 'button' },
+  ) => void;
 }
 
 export function ProjectCanvas({
@@ -76,8 +79,11 @@ export function ProjectCanvas({
     onNodeMove(id, { x, y });
   };
 
-  const handleCanvasPress = (position: { x: number; y: number }) => {
-    onCanvasPress(position);
+  const handleCanvasPress = (
+    position: { x: number; y: number },
+    options?: { shiftKey?: boolean; source?: 'tap' | 'double-click' | 'button' },
+  ) => {
+    onCanvasPress(position, options);
   };
 
   // Cards View
@@ -163,7 +169,11 @@ export function ProjectCanvas({
       <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <ViewModeToggle mode={viewMode} onModeChange={setViewMode} />
         <Text style={[styles.instructionText, { color: colors.textSecondary }]}>
-          {viewMode === 'graph' ? 'Two-finger tap to create nodes' : 'Tap cards to edit'}
+          {viewMode === 'graph'
+            ? (Platform.OS === 'web'
+              ? 'Double-click to create nodes • Shift + double-click for tasks'
+              : 'Two-finger tap to create nodes')
+            : 'Tap cards to edit'}
         </Text>
       </View>
 
